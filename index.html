@@ -118,7 +118,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = 'const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxelF1sLmUvjITbTX-zCawh3WUXSsEW1_N_wnLbEZnfD0au4-dQ0nDwL84B0BQCFpXU0w/exec';';
+const APPS_SCRIPT_URL = 'const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoDDJTrRFTbxWkYrdVgIO3Y0dz--qxdplToUL2y7WqQbXK328qMqldw7lBd8mKdY1BhA/exec';';
 
 let masterData = [];
 
@@ -150,13 +150,15 @@ confirmationCheckbox.addEventListener('change', () => {
   if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
 });
 
-// Load master data via fetch instead of google.script.run
-fetch(APPS_SCRIPT_URL + '?action=getMasterData')
-  .then(r => r.json())
-  .then(data => {
-    masterData = data;
-    populateClients();
-  });
+// Load master data via JSONP to bypass CORS
+function handleMasterData(data) {
+  masterData = data;
+  populateClients();
+}
+
+const script = document.createElement('script');
+script.src = APPS_SCRIPT_URL + '?action=getMasterData&callback=handleMasterData';
+document.body.appendChild(script);
 
 function populateClients() {
   [...new Set(masterData.map(d => d.client))]
