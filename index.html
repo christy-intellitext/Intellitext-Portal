@@ -1,35 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Class Reporting Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Comfortaa', sans-serif; background: #dce4df; padding: 40px; }
+    .form-container { background: #f5f8f6; max-width: 800px; margin: auto; padding: 30px; border-radius: 10px; }
+    label { font-weight: 600; display: block; margin-top: 16px; }
+    select, option, textarea, input[type="date"], input[type="file"], input[type="text"], input[type="email"], button {
+      font-family: 'Comfortaa', sans-serif; width: 100%; padding: 8px; margin-top: 6px;
+    }
+    textarea { min-height: 70px; }
+    .hidden { display: none; }
+    .segmented { display: flex; gap: 10px; margin-top: 10px; }
+    .segmented button { flex: 1; border: 1px solid #b5c0bb; background: #fff; cursor: pointer; font-weight: 600; }
+    .segmented button.active { background: #2c6a4d; color: #fff; }
+    .issue-block { border: 1px solid #b5c0bb; padding: 10px; margin-top: 10px; background: #fff; }
+    button[type="submit"] { margin-top: 25px; background: #2c6a4d; color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; }
+    button.disabled { background: #9fb5ab; cursor: not-allowed; opacity: 0.7; }
+    #successView { text-align: center; }
+    #date { width: 180px; }
+    #successView h2 { color: #2c6a4d; }
+  </style>
+</head>
+<body>
+<div class="form-container">
+
+  <img src="https://i.imgur.com/YkhiJRe.png" alt="Intellitext"
+    style="display:block; margin:0 auto 20px; max-width:200px;">
+
+  <form id="reportForm">
+    <label>Client</label>
+    <select id="client" required>
+      <option value="">Select Client</option>
+      <option value="__OTHER__">Other / Not Listed</option>
+    </select>
+    <input type="text" id="clientOther" class="hidden" placeholder="Enter client name">
+
+    <label>User</label>
+    <select id="student" required>
+      <option value="">Select User</option>
+      <option value="__OTHER__">Other / Not Listed</option>
+    </select>
+    <input type="text" id="studentOther" class="hidden" placeholder="Enter user name">
+
+    <label>Job</label>
+    <select id="job" required>
+      <option value="">Select Job</option>
+      <option value="__OTHER__">Other / Not Listed</option>
+    </select>
+    <input type="text" id="jobOther" class="hidden" placeholder="Enter job name">
+
+    <label>Date of job</label>
+    <input type="date" id="date" required>
+
+    <label>Outcome</label>
+    <div class="segmented">
+      <button type="button" data-value="attended">Transcription provided</button>
+      <button type="button" data-value="noshow">Client no-show</button>
+      <button type="button" data-value="late_cancel">Late cancel / dismissed</button>
+    </div>
+    <input type="hidden" id="outcome" required>
+
+    <div id="uploadArea" class="hidden">
+      <label>Upload Transcript</label>
+      <input type="file" id="file">
+      <label style="font-weight:500; margin-top:8px;">
+        <input type="checkbox" id="noTranscriptNeeded">
+        No transcript needed or someone else is handling delivery
+      </label>
+      <p id="rit-docx-note" style="display:none; margin-top:6px; font-size:13px; color:#b00020; font-weight:600;">
+        RIT transcripts must be uploaded in <strong>.docx</strong> format.
+      </p>
+    </div>
+
+    <div id="issuesWrapper" class="hidden">
+      <label>Issues to report (optional)</label>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Audio Issues"> Audio Issues</label>
+        <textarea class="hidden"></textarea>
+      </div>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Upcoming Schedule Changes"> Upcoming Schedule Changes</label>
+        <textarea class="hidden"></textarea>
+      </div>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Overages/Class Ran Long"> Overages/Class Ran Long</label>
+        <textarea class="hidden"></textarea>
+      </div>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Other / Misc"> Other / Misc</label>
+        <textarea class="hidden"></textarea>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <label style="font-weight:500;">
+        <input type="checkbox" id="sendConfirmation">
+        Send me a confirmation email
+      </label>
+    </div>
+
+    <div id="confirmationEmailContainer" class="hidden">
+      <label>Email address</label>
+      <input type="email" id="confirmationEmail">
+    </div>
+
+    <button id="submitBtn" type="submit">Submit</button>
+  </form>
+
+  <div id="successView" class="hidden">
+    <h2>Report Submitted</h2>
+    <p>Your job report has been successfully logged.</p>
+  </div>
+
+</div>
+
 <script>
+// Global scope — required for JSONP callback
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoDDJTrRFTbxWkYrdVgIO3Y0dz--qxdplToUL2y7WqQbXK328qMqldw7lBd8mKdY1BhA/exec';
 
 let masterData = [];
-
-const el = {
-  client: document.getElementById('client'),
-  student: document.getElementById('student'),
-  job: document.getElementById('job'),
-  date: document.getElementById('date'),
-  outcome: document.getElementById('outcome'),
-  uploadArea: document.getElementById('uploadArea'),
-  file: document.getElementById('file'),
-  noTranscriptNeeded: document.getElementById('noTranscriptNeeded'),
-  issuesWrapper: document.getElementById('issuesWrapper'),
-  submitBtn: document.getElementById('submitBtn')
-};
-
-const otherFields = {
-  client: document.getElementById('clientOther'),
-  student: document.getElementById('studentOther'),
-  job: document.getElementById('jobOther')
-};
-
-const confirmationCheckbox = document.getElementById('sendConfirmation');
-const confirmationContainer = document.getElementById('confirmationEmailContainer');
-const confirmationEmailInput = document.getElementById('confirmationEmail');
-
-confirmationCheckbox.addEventListener('change', () => {
-  confirmationContainer.classList.toggle('hidden', !confirmationCheckbox.checked);
-  if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
-});
+let el = {};
+let otherFields = {};
 
 function handleMasterData(data) {
   masterData = data;
@@ -42,135 +136,26 @@ function populateClients() {
     .forEach(v => addOption(el.client, v));
 }
 
-const script = document.createElement('script');
-script.src = APPS_SCRIPT_URL + '?action=getMasterData&callback=handleMasterData';
-document.body.appendChild(script);
+function addOption(select, value) {
+  const o = document.createElement('option');
+  o.value = value;
+  o.textContent = value;
+  select.appendChild(o);
+}
 
-el.client.addEventListener('change', () => {
-  reset(el.student);
-  reset(el.job);
-  toggleOther(el.client, otherFields.client);
-  masterData
-    .filter(d => d.client === el.client.value)
-    .map(d => d.student)
-    .filter(unique)
-    .sort()
-    .forEach(v => addOption(el.student, v));
-});
+function reset(select) {
+  select.innerHTML =
+    '<option value="">Select</option>' +
+    '<option value="__OTHER__">Other / Not Listed</option>';
+}
 
-el.student.addEventListener('change', () => {
-  reset(el.job);
-  toggleOther(el.student, otherFields.student);
-  masterData
-    .filter(d => d.client === el.client.value && d.student === el.student.value)
-    .map(d => d.job)
-    .sort()
-    .forEach(v => addOption(el.job, v));
-});
+function unique(v, i, a) { return a.indexOf(v) === i; }
 
-el.job.addEventListener('change', () => toggleOther(el.job, otherFields.job));
-
-document.querySelectorAll('.segmented button').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const map = { attended: 'Attended', noshow: 'No-Show', late_cancel: 'Late Notice Cancellation' };
-    const resolvedOutcome = map[btn.dataset.value];
-    el.outcome.value = resolvedOutcome;
-    const isAttended = resolvedOutcome === 'Attended';
-    el.uploadArea.classList.toggle('hidden', !isAttended);
-    el.issuesWrapper.classList.toggle('hidden', !isAttended);
-    if (!isAttended) {
-      el.noTranscriptNeeded.checked = false;
-      el.file.disabled = false;
-      el.file.value = '';
-    }
-  });
-});
-
-el.noTranscriptNeeded.addEventListener('change', () => {
-  if (el.noTranscriptNeeded.checked) {
-    el.file.value = '';
-    el.file.disabled = true;
-  } else {
-    el.file.disabled = false;
-  }
-});
-
-document.querySelectorAll('.issue-block input[type="checkbox"]').forEach(cb => {
-  cb.addEventListener('change', () => {
-    cb.closest('.issue-block').querySelector('textarea')
-      .classList.toggle('hidden', !cb.checked);
-  });
-});
-
-document.getElementById('reportForm').addEventListener('submit', e => {
-  e.preventDefault();
-
-  if (el.outcome.value === 'Attended' && !el.noTranscriptNeeded.checked && !el.file.files[0]) {
-    alert('Please upload a transcript or select "No transcript needed."');
-    return;
-  }
-  if (!el.outcome.value) {
-    alert('Please select an outcome before submitting.');
-    return;
-  }
-  if (confirmationCheckbox.checked && !confirmationEmailInput.value.trim()) {
-    alert('Please enter your email address for confirmation.');
-    return;
-  }
-
-  el.submitBtn.disabled = true;
-  el.submitBtn.classList.add('disabled');
-  el.submitBtn.textContent = 'Submitting…';
-
-  const selected = masterData.find(d =>
-    d.client === el.client.value &&
-    d.student === el.student.value &&
-    d.job === el.job.value
-  );
-
-  const manualEntry =
-    el.client.value === '__OTHER__' ||
-    el.student.value === '__OTHER__' ||
-    el.job.value === '__OTHER__';
-
-  const issues = [];
-  document.querySelectorAll('.issue-block').forEach(block => {
-    const cb = block.querySelector('input');
-    const ta = block.querySelector('textarea');
-    if (cb.checked && ta.value.trim()) {
-      issues.push({ type: cb.dataset.type, text: ta.value.trim() });
-    }
-  });
-
-  const payload = {
-    client: el.client.value === '__OTHER__' ? otherFields.client.value.trim() : el.client.value,
-    student: el.student.value === '__OTHER__' ? otherFields.student.value.trim() : el.student.value,
-    job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
-    date: el.date.value,
-    outcome: el.outcome.value,
-    destination: manualEntry ? '' : (selected?.destination || ''),
-    manualEntry,
-    issues,
-    noTranscriptNeeded: el.noTranscriptNeeded.checked === true,
-    sendConfirmation: confirmationCheckbox.checked,
-    confirmationEmail: confirmationCheckbox.checked ? confirmationEmailInput.value.trim() : ''
-  };
-
-  if (el.file.files[0]) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      payload.fileData = reader.result.split(',')[1];
-      payload.fileName = el.file.files[0].name;
-      payload.fileType = el.file.files[0].type;
-      send(payload);
-    };
-    reader.readAsDataURL(el.file.files[0]);
-  } else {
-    send(payload);
-  }
-});
+function toggleOther(select, field) {
+  const show = select.value === '__OTHER__';
+  field.classList.toggle('hidden', !show);
+  if (!show) field.value = '';
+}
 
 function send(payload) {
   fetch(APPS_SCRIPT_URL, {
@@ -194,35 +179,176 @@ function send(payload) {
   });
 }
 
-function toggleOther(select, field) {
-  const show = select.value === '__OTHER__';
-  field.classList.toggle('hidden', !show);
-  if (!show) field.value = '';
-}
+document.addEventListener('DOMContentLoaded', function () {
 
-function addOption(select, value) {
-  const o = document.createElement('option');
-  o.value = value;
-  o.textContent = value;
-  select.appendChild(o);
-}
+  el = {
+    client: document.getElementById('client'),
+    student: document.getElementById('student'),
+    job: document.getElementById('job'),
+    date: document.getElementById('date'),
+    outcome: document.getElementById('outcome'),
+    uploadArea: document.getElementById('uploadArea'),
+    file: document.getElementById('file'),
+    noTranscriptNeeded: document.getElementById('noTranscriptNeeded'),
+    issuesWrapper: document.getElementById('issuesWrapper'),
+    submitBtn: document.getElementById('submitBtn')
+  };
 
-function reset(select) {
-  select.innerHTML =
-    '<option value="">Select</option>' +
-    '<option value="__OTHER__">Other / Not Listed</option>';
-}
+  otherFields = {
+    client: document.getElementById('clientOther'),
+    student: document.getElementById('studentOther'),
+    job: document.getElementById('jobOther')
+  };
 
-function unique(v, i, a) { return a.indexOf(v) === i; }
+  const confirmationCheckbox = document.getElementById('sendConfirmation');
+  const confirmationContainer = document.getElementById('confirmationEmailContainer');
+  const confirmationEmailInput = document.getElementById('confirmationEmail');
 
-(function () {
+  confirmationCheckbox.addEventListener('change', () => {
+    confirmationContainer.classList.toggle('hidden', !confirmationCheckbox.checked);
+    if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
+  });
+
+  // Load master data via JSONP
+  const script = document.createElement('script');
+  script.src = APPS_SCRIPT_URL + '?action=getMasterData&callback=handleMasterData';
+  document.body.appendChild(script);
+
+  el.client.addEventListener('change', () => {
+    reset(el.student);
+    reset(el.job);
+    toggleOther(el.client, otherFields.client);
+    masterData
+      .filter(d => d.client === el.client.value)
+      .map(d => d.student)
+      .filter(unique)
+      .sort()
+      .forEach(v => addOption(el.student, v));
+  });
+
+  el.student.addEventListener('change', () => {
+    reset(el.job);
+    toggleOther(el.student, otherFields.student);
+    masterData
+      .filter(d => d.client === el.client.value && d.student === el.student.value)
+      .map(d => d.job)
+      .sort()
+      .forEach(v => addOption(el.job, v));
+  });
+
+  el.job.addEventListener('change', () => toggleOther(el.job, otherFields.job));
+
+  document.querySelectorAll('.segmented button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const map = { attended: 'Attended', noshow: 'No-Show', late_cancel: 'Late Notice Cancellation' };
+      const resolvedOutcome = map[btn.dataset.value];
+      el.outcome.value = resolvedOutcome;
+      const isAttended = resolvedOutcome === 'Attended';
+      el.uploadArea.classList.toggle('hidden', !isAttended);
+      el.issuesWrapper.classList.toggle('hidden', !isAttended);
+      if (!isAttended) {
+        el.noTranscriptNeeded.checked = false;
+        el.file.disabled = false;
+        el.file.value = '';
+      }
+    });
+  });
+
+  el.noTranscriptNeeded.addEventListener('change', () => {
+    if (el.noTranscriptNeeded.checked) {
+      el.file.value = '';
+      el.file.disabled = true;
+    } else {
+      el.file.disabled = false;
+    }
+  });
+
+  document.querySelectorAll('.issue-block input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.closest('.issue-block').querySelector('textarea')
+        .classList.toggle('hidden', !cb.checked);
+    });
+  });
+
+  document.getElementById('reportForm').addEventListener('submit', e => {
+    e.preventDefault();
+
+    if (el.outcome.value === 'Attended' && !el.noTranscriptNeeded.checked && !el.file.files[0]) {
+      alert('Please upload a transcript or select "No transcript needed."');
+      return;
+    }
+    if (!el.outcome.value) {
+      alert('Please select an outcome before submitting.');
+      return;
+    }
+    if (confirmationCheckbox.checked && !confirmationEmailInput.value.trim()) {
+      alert('Please enter your email address for confirmation.');
+      return;
+    }
+
+    el.submitBtn.disabled = true;
+    el.submitBtn.classList.add('disabled');
+    el.submitBtn.textContent = 'Submitting…';
+
+    const selected = masterData.find(d =>
+      d.client === el.client.value &&
+      d.student === el.student.value &&
+      d.job === el.job.value
+    );
+
+    const manualEntry =
+      el.client.value === '__OTHER__' ||
+      el.student.value === '__OTHER__' ||
+      el.job.value === '__OTHER__';
+
+    const issues = [];
+    document.querySelectorAll('.issue-block').forEach(block => {
+      const cb = block.querySelector('input');
+      const ta = block.querySelector('textarea');
+      if (cb.checked && ta.value.trim()) {
+        issues.push({ type: cb.dataset.type, text: ta.value.trim() });
+      }
+    });
+
+    const payload = {
+      client: el.client.value === '__OTHER__' ? otherFields.client.value.trim() : el.client.value,
+      student: el.student.value === '__OTHER__' ? otherFields.student.value.trim() : el.student.value,
+      job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
+      date: el.date.value,
+      outcome: el.outcome.value,
+      destination: manualEntry ? '' : (selected?.destination || ''),
+      manualEntry,
+      issues,
+      noTranscriptNeeded: el.noTranscriptNeeded.checked === true,
+      sendConfirmation: confirmationCheckbox.checked,
+      confirmationEmail: confirmationCheckbox.checked ? confirmationEmailInput.value.trim() : ''
+    };
+
+    if (el.file.files[0]) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        payload.fileData = reader.result.split(',')[1];
+        payload.fileName = el.file.files[0].name;
+        payload.fileType = el.file.files[0].type;
+        send(payload);
+      };
+      reader.readAsDataURL(el.file.files[0]);
+    } else {
+      send(payload);
+    }
+  });
+
   const ritNote = document.getElementById('rit-docx-note');
-  if (!ritNote) return;
   function toggleRitNote() {
     const isRIT = (el.client.value || '').trim().toUpperCase() === 'RIT';
     ritNote.style.display = isRIT ? 'block' : 'none';
   }
   el.client.addEventListener('change', toggleRitNote);
   toggleRitNote();
-})();
+
+}); // end DOMContentLoaded
 </script>
+</body>
+</html>
