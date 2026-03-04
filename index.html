@@ -22,6 +22,7 @@
     #successView { text-align: center; }
     #date { width: 180px; }
     #successView h2 { color: #2c6a4d; }
+    #loadingNote { font-size: 13px; color: #666; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -33,9 +34,9 @@
   <form id="reportForm">
     <label>Client</label>
     <select id="client" required>
-      <option value="">Select Client</option>
-      <option value="__OTHER__">Other / Not Listed</option>
+      <option value="">Loading...</option>
     </select>
+    <div id="loadingNote">Fetching client list, please wait…</div>
     <input type="text" id="clientOther" class="hidden" placeholder="Enter client name">
 
     <label>User</label>
@@ -118,7 +119,6 @@
 </div>
 
 <script>
-// Global scope — required for JSONP callback
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyoDDJTrRFTbxWkYrdVgIO3Y0dz--qxdplToUL2y7WqQbXK328qMqldw7lBd8mKdY1BhA/exec';
 
 let masterData = [];
@@ -179,6 +179,28 @@ function send(payload) {
   });
 }
 
+function loadMasterData(retries = 3) {
+  fetch(APPS_SCRIPT_URL + '?action=getMasterData')
+    .then(r => r.json())
+    .then(data => {
+      el.client.innerHTML = '<option value="">Select Client</option><option value="__OTHER__">Other / Not Listed</option>';
+      el.client.disabled = false;
+      document.getElementById('loadingNote').classList.add('hidden');
+      handleMasterData(data);
+    })
+    .catch(err => {
+      if (retries > 0) {
+        document.getElementById('loadingNote').textContent = 'Still loading, please wait…';
+        setTimeout(() => loadMasterData(retries - 1), 2000);
+      } else {
+        el.client.innerHTML = '<option value="">Failed to load — please refresh the page</option>';
+        el.client.disabled = false;
+        document.getElementById('loadingNote').textContent = 'Could not load client list. Please refresh.';
+        document.getElementById('loadingNote').style.color = '#b00020';
+      }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
 
   el = {
@@ -209,11 +231,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
   });
 
- // Load master data via fetch
-fetch(APPS_SCRIPT_URL + '?action=getMasterData')
-  .then(r => r.json())
-  .then(data => handleMasterData(data))
-  .catch(err => console.error('Failed to load master data:', err));
+  // Disable client dropdown while loading
+  el.client.disabled = true;
+  loadMasterData();
 
   el.client.addEventListener('change', () => {
     reset(el.student);
