@@ -156,15 +156,14 @@ function handleMasterData(data) {
   populateClients();
 }
 
+function handleMasterData(data) {
+  masterData = data;
+  populateClients();
+}
+
 const script = document.createElement('script');
 script.src = APPS_SCRIPT_URL + '?action=getMasterData&callback=handleMasterData';
 document.body.appendChild(script);
-
-function populateClients() {
-  [...new Set(masterData.map(d => d.client))]
-    .sort()
-    .forEach(v => addOption(el.client, v));
-}
 
 el.client.addEventListener('change', () => {
   reset(el.student);
