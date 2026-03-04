@@ -209,10 +209,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
   });
 
-  // Load master data via JSONP
-  const script = document.createElement('script');
-  script.src = APPS_SCRIPT_URL + '?action=getMasterData&callback=handleMasterData';
-  document.body.appendChild(script);
+ // Load master data via fetch
+fetch(APPS_SCRIPT_URL + '?action=getMasterData')
+  .then(r => r.json())
+  .then(data => handleMasterData(data))
+  .catch(err => console.error('Failed to load master data:', err));
 
   el.client.addEventListener('change', () => {
     reset(el.student);
