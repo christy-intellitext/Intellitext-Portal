@@ -24,7 +24,6 @@
     #date { width: 180px; }
     #successView h2 { color: #2c6a4d; }
     #loadingNote { font-size: 13px; color: #666; margin-top: 4px; }
-    /* CHANGE 1: Style for the new button */
     #logAnotherBtn { margin-top: 16px; background: #2c6a4d; color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; border-radius: 6px; }
   </style>
 </head>
@@ -114,7 +113,6 @@
     <button id="submitBtn" type="submit">Submit</button>
   </form>
 
-  <!-- CHANGE 2: Added logAnotherBtn to successView -->
   <div id="successView" class="hidden">
     <h2>Report Submitted</h2>
     <p>Your job report has been successfully logged.</p>
@@ -124,12 +122,19 @@
 </div>
 
 <script>
-/* CHANGE 3: Updated deployment URL */
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCTIVbDq0xG_8frZdEziDs_MfgZa17Mk7rmu9SZ6GMvxaRv38s4MFAi9eeuxRC8hsW9Q/exec';
 
 let masterData = [];
 let el = {};
 let otherFields = {};
+
+function getTodayString() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
 
 function handleMasterData(data) {
   masterData = data;
@@ -237,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
   });
 
-  el.date.valueAsDate = new Date();
+  el.date.value = getTodayString();
   el.client.disabled = true;
   loadMasterData();
 
@@ -343,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function () {
       client: el.client.value === '__OTHER__' ? otherFields.client.value.trim() : el.client.value,
       student: el.student.value === '__OTHER__' ? otherFields.student.value.trim() : el.student.value,
       job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
-      date: el.date.value, 
+      date: el.date.value,
       outcome: el.outcome.value,
       destination: manualEntry ? '' : (selected?.destination || ''),
       manualEntry,
@@ -383,7 +388,8 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('reportForm').classList.remove('hidden');
 
     document.getElementById('reportForm').reset();
-    el.date.valueAsDate = new Date();
+    el.date.value = getTodayString();
+
     reset(el.student);
     reset(el.job);
 
