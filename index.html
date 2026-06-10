@@ -237,6 +237,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
   });
 
+  el.date.valueAsDate = new Date();
   el.client.disabled = true;
   loadMasterData();
 
@@ -342,7 +343,7 @@ document.addEventListener('DOMContentLoaded', function () {
       client: el.client.value === '__OTHER__' ? otherFields.client.value.trim() : el.client.value,
       student: el.student.value === '__OTHER__' ? otherFields.student.value.trim() : el.student.value,
       job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
-      date: el.date.value,
+      date: el.date.value, 
       outcome: el.outcome.value,
       destination: manualEntry ? '' : (selected?.destination || ''),
       manualEntry,
@@ -382,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('reportForm').classList.remove('hidden');
 
     document.getElementById('reportForm').reset();
-
+    el.date.valueAsDate = new Date();
     reset(el.student);
     reset(el.job);
 
