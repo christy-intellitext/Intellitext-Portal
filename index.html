@@ -388,6 +388,10 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('reportForm').classList.remove('hidden');
 
     document.getElementById('reportForm').reset();
+    const fileInput = document.getElementById('file');
+const newFile = fileInput.cloneNode(true);
+fileInput.parentNode.replaceChild(newFile, fileInput);
+el.file = newFile;
     el.date.value = getTodayString();
 
     reset(el.student);
