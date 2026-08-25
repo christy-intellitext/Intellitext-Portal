@@ -318,10 +318,10 @@ document.addEventListener('DOMContentLoaded', function () {
   el.client.disabled = true;
   loadMasterData();
 
-  el.client.addEventListener('input', () => {
+  el.client.addEventListener('input', (e) => {
     reset(el.student);
     reset(el.job);
-    renderClientSuggestions(el.client.value);
+    if (e.isTrusted) renderClientSuggestions(el.client.value); // real typing only — skip on programmatic selection
     masterData
       .filter(d => d.client === el.client.value)
       .map(d => d.student)
