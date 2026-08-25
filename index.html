@@ -24,6 +24,17 @@
       font-family: 'Manrope', sans-serif; width: 100%; padding: 8px; margin-top: 6px;
       border: 1px solid var(--border); border-radius: 6px; color: var(--ink); background: var(--surface);
     }
+    .autocomplete-wrap { position: relative; }
+    .suggestions-list {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 6px 6px; max-height: 220px; overflow-y: auto;
+      box-shadow: 0 4px 10px rgba(33, 47, 54, 0.12);
+    }
+    .suggestions-list .suggestion-item { padding: 8px 10px; cursor: pointer; font-size: 14px; }
+    .suggestions-list .suggestion-item:hover,
+    .suggestions-list .suggestion-item.active { background: var(--accent-soft); }
+    .suggestions-list .suggestion-empty { padding: 8px 10px; font-size: 13px; color: var(--muted); cursor: default; }
     textarea { min-height: 70px; }
     .hidden { display: none; }
     .segmented { display: flex; gap: 10px; margin-top: 10px; }
@@ -50,8 +61,10 @@
 
   <form id="reportForm">
     <label>Client</label>
-    <input type="text" id="client" list="clientListOptions" placeholder="Loading…" autocomplete="off" disabled required>
-    <datalist id="clientListOptions"></datalist>
+    <div class="autocomplete-wrap">
+      <input type="text" id="client" placeholder="Loading…" autocomplete="off" disabled required>
+      <div id="clientSuggestions" class="suggestions-list hidden"></div>
+    </div>
     <div id="loadingNote">Loading, please wait…</div>
 
     <label>User</label>
@@ -143,6 +156,8 @@
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbznvZQD2-yl18RxsNDX99iX9U1eOB02AIiBIYLIOHHxGOdSL8tWMYholm-S62KoxqZr3Q/exec';
 
 let masterData = [];
+let clientOptions = [];
+let activeSuggestionIndex = -1;
 let el = {};
 let otherFields = {};
 
@@ -160,15 +175,47 @@ function handleMasterData(data) {
 }
 
 function populateClients() {
-  const clientListEl = document.getElementById('clientListOptions');
-  clientListEl.innerHTML = '';
-  [...new Set(masterData.map(d => d.client))]
-    .sort()
-    .forEach(v => {
-      const o = document.createElement('option');
-      o.value = v;
-      clientListEl.appendChild(o);
+  clientOptions = [...new Set(masterData.map(d => d.client))].sort();
+}
+
+function renderClientSuggestions(query) {
+  const box = document.getElementById('clientSuggestions');
+  const q = query.trim().toLowerCase();
+
+  const matches = q
+    ? clientOptions.filter(c => c.toLowerCase().startsWith(q))
+    : clientOptions;
+
+  activeSuggestionIndex = -1;
+
+  if (!matches.length) {
+    box.innerHTML = '<div class="suggestion-empty">No matching clients</div>';
+    box.classList.remove('hidden');
+    return;
+  }
+
+  box.innerHTML = matches.map((c, i) =>
+    `<div class="suggestion-item" data-index="${i}" data-value="${c.replace(/"/g, '&quot;')}">${c}</div>`
+  ).join('');
+  box.classList.remove('hidden');
+
+  box.querySelectorAll('.suggestion-item').forEach(item => {
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // keep focus so blur doesn't close the list before the click registers
+      selectClient(item.dataset.value);
     });
+  });
+}
+
+function selectClient(value) {
+  el.client.value = value;
+  hideClientSuggestions();
+  el.client.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function hideClientSuggestions() {
+  document.getElementById('clientSuggestions').classList.add('hidden');
+  activeSuggestionIndex = -1;
 }
 
 function addOption(select, value) {
@@ -274,12 +321,46 @@ document.addEventListener('DOMContentLoaded', function () {
   el.client.addEventListener('input', () => {
     reset(el.student);
     reset(el.job);
+    renderClientSuggestions(el.client.value);
     masterData
       .filter(d => d.client === el.client.value)
       .map(d => d.student)
       .filter(unique)
       .sort()
       .forEach(v => addOption(el.student, v));
+  });
+
+  el.client.addEventListener('focus', () => {
+    if (!el.client.disabled) renderClientSuggestions(el.client.value);
+  });
+
+  el.client.addEventListener('blur', () => {
+    hideClientSuggestions();
+  });
+
+  el.client.addEventListener('keydown', (e) => {
+    const box = document.getElementById('clientSuggestions');
+    const items = box.querySelectorAll('.suggestion-item');
+    if (box.classList.contains('hidden') || !items.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, items.length - 1);
+      items.forEach((it, i) => it.classList.toggle('active', i === activeSuggestionIndex));
+      items[activeSuggestionIndex].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+      items.forEach((it, i) => it.classList.toggle('active', i === activeSuggestionIndex));
+      items[activeSuggestionIndex].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (activeSuggestionIndex >= 0) {
+        e.preventDefault();
+        selectClient(items[activeSuggestionIndex].dataset.value);
+      }
+    } else if (e.key === 'Escape') {
+      hideClientSuggestions();
+    }
   });
 
   el.student.addEventListener('change', () => {
