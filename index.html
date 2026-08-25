@@ -50,11 +50,9 @@
 
   <form id="reportForm">
     <label>Client</label>
-    <select id="client" required>
-      <option value="">Loading...</option>
-    </select>
+    <input type="text" id="client" list="clientListOptions" placeholder="Loading…" autocomplete="off" disabled required>
+    <datalist id="clientListOptions"></datalist>
     <div id="loadingNote">Loading, please wait…</div>
-    <input type="text" id="clientOther" class="hidden" placeholder="Enter client name">
 
     <label>User</label>
     <select id="student" required>
@@ -162,9 +160,15 @@ function handleMasterData(data) {
 }
 
 function populateClients() {
+  const clientListEl = document.getElementById('clientListOptions');
+  clientListEl.innerHTML = '';
   [...new Set(masterData.map(d => d.client))]
     .sort()
-    .forEach(v => addOption(el.client, v));
+    .forEach(v => {
+      const o = document.createElement('option');
+      o.value = v;
+      clientListEl.appendChild(o);
+    });
 }
 
 function addOption(select, value) {
@@ -214,8 +218,8 @@ function loadMasterData(retries = 3) {
   fetch(APPS_SCRIPT_URL + '?action=getMasterData')
     .then(r => r.json())
     .then(data => {
-      el.client.innerHTML = '<option value="">Select Client</option><option value="__OTHER__">Other / Not Listed</option>';
       el.client.disabled = false;
+      el.client.placeholder = 'Type to search…';
       document.getElementById('loadingNote').classList.add('hidden');
       handleMasterData(data);
     })
@@ -224,8 +228,8 @@ function loadMasterData(retries = 3) {
         document.getElementById('loadingNote').textContent = 'Still loading, please wait…';
         setTimeout(() => loadMasterData(retries - 1), 2000);
       } else {
-        el.client.innerHTML = '<option value="">Failed to load — please refresh the page</option>';
         el.client.disabled = false;
+        el.client.placeholder = 'Failed to load — please refresh the page';
         document.getElementById('loadingNote').textContent = 'Could not load client list. Please refresh.';
         document.getElementById('loadingNote').style.color = 'var(--error)';
       }
@@ -250,7 +254,6 @@ document.addEventListener('DOMContentLoaded', function () {
   };
 
   otherFields = {
-    client: document.getElementById('clientOther'),
     student: document.getElementById('studentOther'),
     job: document.getElementById('jobOther')
   };
@@ -268,10 +271,9 @@ document.addEventListener('DOMContentLoaded', function () {
   el.client.disabled = true;
   loadMasterData();
 
-  el.client.addEventListener('change', () => {
+  el.client.addEventListener('input', () => {
     reset(el.student);
     reset(el.job);
-    toggleOther(el.client, otherFields.client);
     masterData
       .filter(d => d.client === el.client.value)
       .map(d => d.student)
@@ -358,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function () {
     );
 
     const manualEntry =
-      el.client.value === '__OTHER__' ||
+      !masterData.some(d => d.client === el.client.value) ||
       el.student.value === '__OTHER__' ||
       el.job.value === '__OTHER__';
 
@@ -376,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function () {
       : '';
 
     const payload = {
-      client: el.client.value === '__OTHER__' ? otherFields.client.value.trim() : el.client.value,
+      client: el.client.value.trim(),
       student: el.student.value === '__OTHER__' ? otherFields.student.value.trim() : el.student.value,
       job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
       date: el.date.value,
@@ -409,7 +411,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const isRIT = (el.client.value || '').trim().toUpperCase() === 'RIT';
     ritNote.style.display = isRIT ? 'block' : 'none';
   }
-  el.client.addEventListener('change', toggleRitNote);
+  el.client.addEventListener('input', toggleRitNote);
   toggleRitNote();
 
   // ===============================
