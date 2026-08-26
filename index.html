@@ -51,6 +51,21 @@
     #logAnotherBtn { margin-top: 16px; background: var(--accent); color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; border-radius: 6px; }
     #logAnotherBtn:hover { background: var(--accent-dark); }
     #rit-docx-note { color: var(--error) !important; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(33, 47, 54, 0.5);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal-box {
+      background: var(--surface); max-width: 400px; width: 90%;
+      padding: 24px; border-radius: 12px; box-shadow: 0 4px 16px rgba(33, 47, 54, 0.2);
+      text-align: center;
+    }
+    .modal-box p { margin: 0 0 20px; color: var(--ink); line-height: 1.5; }
+    .modal-box button {
+      background: var(--accent); color: #fff; border: none; font-size: 15px;
+      cursor: pointer; width: auto; padding: 8px 20px; border-radius: 6px;
+    }
+    .modal-box button:hover { background: var(--accent-dark); }
   </style>
 </head>
 <body>
@@ -150,6 +165,13 @@
     <button id="logAnotherBtn">Submit Another Report</button>
   </div>
 
+  <div id="dupModalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p id="dupModalMessage"></p>
+      <button id="dupModalOk">OK</button>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -239,6 +261,11 @@ function toggleOther(select, field) {
   if (!show) field.value = '';
 }
 
+function showDupModal(message) {
+  document.getElementById('dupModalMessage').textContent = message;
+  document.getElementById('dupModalOverlay').classList.remove('hidden');
+}
+
 function send(payload) {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
@@ -253,10 +280,7 @@ function send(payload) {
     }
 
     if (res.duplicate) {
-      alert(res.message || 'This appears to be a duplicate submission.');
-      el.submitBtn.disabled = false;
-      el.submitBtn.classList.remove('disabled');
-      el.submitBtn.textContent = 'Submit';
+      showDupModal(res.message || 'This appears to be a duplicate submission.');
       return;
     }
 
@@ -503,6 +527,13 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   el.client.addEventListener('input', toggleRitNote);
   toggleRitNote();
+
+  document.getElementById('dupModalOk').addEventListener('click', () => {
+    document.getElementById('dupModalOverlay').classList.add('hidden');
+    el.submitBtn.disabled = false;
+    el.submitBtn.classList.remove('disabled');
+    el.submitBtn.textContent = 'Submit';
+  });
 
   // ===============================
   // SUBMIT ANOTHER REPORT BUTTON
