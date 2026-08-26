@@ -153,7 +153,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx7wF77BZ1_AxIcwN0Kj66EaxiZbrgTJXTgj5_Zln7zPVatNeJBs0p2eYDzunHZegOlRw/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzob-A0oKCWyaGt-dbbaVPrkvVIMB02b338-06uMY1qpjrq0L_kw12DkETeZhin72UvRQ/exec';
 
 let masterData = [];
 let clientOptions = [];
@@ -249,9 +249,18 @@ function send(payload) {
     if (res.success) {
       document.getElementById('reportForm').classList.add('hidden');
       document.getElementById('successView').classList.remove('hidden');
-    } else {
-      throw new Error('Submission failed');
+      return;
     }
+
+    if (res.duplicate) {
+      alert(res.message || 'This appears to be a duplicate submission.');
+      el.submitBtn.disabled = false;
+      el.submitBtn.classList.remove('disabled');
+      el.submitBtn.textContent = 'Submit';
+      return;
+    }
+
+    throw new Error('Submission failed');
   })
   .catch(() => {
     alert('There was an error submitting the report. Please try again.');
