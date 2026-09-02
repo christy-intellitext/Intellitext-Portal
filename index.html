@@ -183,6 +183,7 @@ let activeSuggestionIndex = -1;
 let el = {};
 let otherFields = {};
 let currentSubmissionId = null;
+let dateIsAutoSet = true;
 
 function newSubmissionId() {
   currentSubmissionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -320,7 +321,7 @@ function loadMasterData(retries = 3) {
       } else {
         el.client.disabled = false;
         el.client.placeholder = 'Failed to load — please refresh the page';
-        document.getElementById('loadingNote').textContent = 'Could not load client list. Please refresh.';
+        document.getElementById('loadingNote').textContent = 'Please refresh your page.';
         document.getElementById('loadingNote').style.color = 'var(--error)';
       }
     });
@@ -358,9 +359,33 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   el.date.value = getTodayString();
+  dateIsAutoSet = true;
   el.client.disabled = true;
   newSubmissionId();
   loadMasterData();
+
+  // ===============================
+  // STALE DATE AUTO-REFRESH
+  // ===============================
+  // Keeps the "Date of job" field pinned to today's date as long as the
+  // transcriber hasn't manually touched it. Guards against the portal
+  // being left open overnight (or reopened days later) and silently
+  // submitting under a stale default date.
+  el.date.addEventListener('input', () => {
+    dateIsAutoSet = false;
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && dateIsAutoSet) {
+      el.date.value = getTodayString();
+    }
+  });
+
+  setInterval(() => {
+    if (dateIsAutoSet) {
+      el.date.value = getTodayString();
+    }
+  }, 60000); // check every minute
 
   el.client.addEventListener('input', (e) => {
     reset(el.student);
@@ -474,6 +499,13 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
 
+    // Final safety net: if the date field is still on autopilot, force it
+    // to the current date right before the payload is built, in case the
+    // interval/visibility checks haven't fired yet this cycle.
+    if (dateIsAutoSet) {
+      el.date.value = getTodayString();
+    }
+
     el.submitBtn.disabled = true;
     el.submitBtn.classList.add('disabled');
     el.submitBtn.textContent = 'Submitting…';
@@ -560,6 +592,7 @@ document.addEventListener('DOMContentLoaded', function () {
     fileInput.parentNode.replaceChild(newFile, fileInput);
     el.file = newFile;
     el.date.value = getTodayString();
+    dateIsAutoSet = true;
     newSubmissionId();
 
     reset(el.student);
