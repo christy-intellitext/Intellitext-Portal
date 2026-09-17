@@ -411,6 +411,7 @@ function loadMasterData(retries = 3) {
       el.client.placeholder = 'Type to search…';
       document.getElementById('loadingNote').classList.add('hidden');
       handleMasterData(data);
+      applyTokenFromUrlIfPresent();
     })
     .catch(err => {
       if (retries > 0) {
@@ -423,6 +424,16 @@ function loadMasterData(retries = 3) {
         document.getElementById('loadingNote').style.color = 'var(--error)';
       }
     });
+}
+
+// Lets a link like ?token=UMBC-GNAP33 pre-fill and auto-run the lookup, so a
+// transcriber can click straight through from shift notes with nothing to
+// paste. Only runs once, right after class data finishes loading.
+function applyTokenFromUrlIfPresent() {
+  const token = new URLSearchParams(window.location.search).get('token');
+  if (!token) return;
+  el.portalToken.value = token;
+  lookupPortalToken();
 }
 
 document.addEventListener('DOMContentLoaded', function () {
