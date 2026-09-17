@@ -56,6 +56,8 @@
     .token-hint { font-weight: 400; color: var(--muted); font-size: 13px; }
     #tokenStatus { font-size: 13px; margin-top: 8px; min-height: 16px; }
     .divider-or { text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin: 14px 0; }
+    .link-btn { width: auto; background: none; border: none; padding: 0; margin: 0; color: var(--accent); font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; text-decoration: underline; }
+    .link-btn:hover { color: var(--accent-dark); }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(33, 47, 54, 0.5);
       display: flex; align-items: center; justify-content: center; z-index: 100;
@@ -87,28 +89,32 @@
       <div id="tokenStatus"></div>
     </div>
 
-    <div class="divider-or">or select manually</div>
-
-    <label>Client</label>
-    <div class="autocomplete-wrap">
-      <input type="text" id="client" placeholder="Loading…" autocomplete="off" disabled required>
-      <div id="clientSuggestions" class="suggestions-list hidden"></div>
+    <div class="divider-or">
+      <button type="button" id="showManualBtn" class="link-btn">I don't have a token — select manually</button>
     </div>
-    <div id="loadingNote">Loading, please wait…</div>
 
-    <label>User</label>
-    <select id="student" required>
-      <option value="">Select User</option>
-      <option value="__OTHER__">Other / Not Listed</option>
-    </select>
-    <input type="text" id="studentOther" class="hidden" placeholder="Enter user name">
+    <div id="manualSection" class="hidden">
+      <label>Client</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="client" placeholder="Loading…" autocomplete="off" disabled required>
+        <div id="clientSuggestions" class="suggestions-list hidden"></div>
+      </div>
+      <div id="loadingNote">Loading, please wait…</div>
 
-    <label>Job</label>
-    <select id="job" required>
-      <option value="">Select Job</option>
-      <option value="__OTHER__">Other / Not Listed</option>
-    </select>
-    <input type="text" id="jobOther" class="hidden" placeholder="Enter job name">
+      <label>User</label>
+      <select id="student" required>
+        <option value="">Select User</option>
+        <option value="__OTHER__">Other / Not Listed</option>
+      </select>
+      <input type="text" id="studentOther" class="hidden" placeholder="Enter user name">
+
+      <label>Job</label>
+      <select id="job" required>
+        <option value="">Select Job</option>
+        <option value="__OTHER__">Other / Not Listed</option>
+      </select>
+      <input type="text" id="jobOther" class="hidden" placeholder="Enter job name">
+    </div>
 
     <label>Date of job</label>
     <input type="date" id="date" required>
@@ -341,6 +347,10 @@ function applyTokenMatch(data) {
   }
 }
 
+function showManualSection() {
+  document.getElementById('manualSection').classList.remove('hidden');
+}
+
 function lookupPortalToken() {
   const token = el.portalToken.value.trim();
   if (!token) { setTokenStatus(''); return; }
@@ -365,9 +375,11 @@ function lookupPortalToken() {
       } else {
         setTokenStatus('No class found for that token. Double check it, or use the dropdowns below.', 'var(--error)');
       }
+      showManualSection();
     })
     .catch(() => {
       setTokenStatus('Could not reach the server — try again in a moment.', 'var(--error)');
+      showManualSection();
     });
 }
 
@@ -463,6 +475,8 @@ document.addEventListener('DOMContentLoaded', function () {
   el.portalToken.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); lookupPortalToken(); }
   });
+
+  document.getElementById('showManualBtn').addEventListener('click', showManualSection);
 
   const confirmationCheckbox = document.getElementById('sendConfirmation');
   const confirmationContainer = document.getElementById('confirmationEmailContainer');
@@ -719,6 +733,8 @@ document.addEventListener('DOMContentLoaded', function () {
     reset(el.job);
     setTokenStatus('');
     usedPortalToken = false;
+    document.getElementById('manualSection').classList.add('hidden');
+    el.portalToken.value = '';
 
     el.uploadArea.classList.add('hidden');
     el.issuesWrapper.classList.add('hidden');
