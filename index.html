@@ -189,7 +189,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby29BD59V2eWIvTOivfiqiporeW8A2fICYgzStCubqtuRAfiDYTWkeiDZCjcz918t7rRA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzBZ5iWs6_7KFOj_LkbQDkog0jRfGXz6tZJJR3a7gFd56tslWAnuJDSCvu4lxfRByKGwQ/exec';
 
 let masterData = [];
 let clientOptions = [];
@@ -199,6 +199,7 @@ let otherFields = {};
 let currentSubmissionId = null;
 let dateIsAutoSet = true;
 let toggleRitNoteFromClient = function() {};
+let usedPortalToken = false; // true once a submission's Client/User/Job came from a successful token lookup
 
 function newSubmissionId() {
   currentSubmissionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -303,6 +304,8 @@ function setTokenStatus(msg, color) {
 }
 
 function applyTokenMatch(data) {
+  usedPortalToken = true;
+
   el.client.value = data.client;
   hideClientSuggestions();
 
@@ -491,7 +494,10 @@ document.addEventListener('DOMContentLoaded', function () {
   el.client.addEventListener('input', (e) => {
     reset(el.student);
     reset(el.job);
-    if (e.isTrusted) renderClientSuggestions(el.client.value); // real typing only — skip on programmatic selection
+    if (e.isTrusted) {
+      renderClientSuggestions(el.client.value); // real typing only — skip on programmatic selection
+      usedPortalToken = false; // manual edit after a token fill means this is no longer a token-driven entry
+    }
     masterData
       .filter(d => d.client === el.client.value)
       .map(d => d.student)
@@ -644,6 +650,7 @@ document.addEventListener('DOMContentLoaded', function () {
       outcome: el.outcome.value,
       destination: manualEntry ? '' : (selected?.destination || ''),
       manualEntry,
+      viaPortalToken: usedPortalToken,
       issues,
       lateCancelComment,
       noTranscriptNeeded: el.noTranscriptNeeded.checked === true,
@@ -700,6 +707,7 @@ document.addEventListener('DOMContentLoaded', function () {
     reset(el.student);
     reset(el.job);
     setTokenStatus('');
+    usedPortalToken = false;
 
     el.uploadArea.classList.add('hidden');
     el.issuesWrapper.classList.add('hidden');
