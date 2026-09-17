@@ -51,6 +51,11 @@
     #logAnotherBtn { margin-top: 16px; background: var(--accent); color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; border-radius: 6px; }
     #logAnotherBtn:hover { background: var(--accent-dark); }
     #rit-docx-note { color: var(--error) !important; }
+    .token-box { border: 1px solid var(--border); background: var(--accent-soft); border-radius: 8px; padding: 14px 16px 16px; margin-bottom: 10px; }
+    .token-box label { margin-top: 0; }
+    .token-hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+    #tokenStatus { font-size: 13px; margin-top: 8px; min-height: 16px; }
+    .divider-or { text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin: 14px 0; }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(33, 47, 54, 0.5);
       display: flex; align-items: center; justify-content: center; z-index: 100;
@@ -75,6 +80,15 @@
     style="display:block; margin:0 auto 20px; max-width:200px;">
 
   <form id="reportForm">
+
+    <div class="token-box">
+      <label>Have a Portal Token? <span class="token-hint">(from your WhenIWork shift notes — paste it here to skip the dropdowns below)</span></label>
+      <input type="text" id="portalToken" placeholder="e.g. BYU-FNM52U" autocomplete="off">
+      <div id="tokenStatus"></div>
+    </div>
+
+    <div class="divider-or">or select manually</div>
+
     <label>Client</label>
     <div class="autocomplete-wrap">
       <input type="text" id="client" placeholder="Loading…" autocomplete="off" disabled required>
@@ -184,6 +198,7 @@ let el = {};
 let otherFields = {};
 let currentSubmissionId = null;
 let dateIsAutoSet = true;
+let toggleRitNoteFromClient = function() {};
 
 function newSubmissionId() {
   currentSubmissionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
@@ -273,6 +288,86 @@ function showDupModal(message) {
   document.getElementById('dupModalOverlay').classList.remove('hidden');
 }
 
+// ===============================
+// PORTAL TOKEN LOOKUP
+// ===============================
+// Additive alongside the Client/User/Job dropdowns below. A successful
+// lookup pre-fills those same fields with values already present in
+// masterData, so everything downstream (Other/Not Listed handling,
+// destination lookup at submit time, manualEntry detection) behaves
+// exactly as if the transcriber had picked them from the dropdowns.
+function setTokenStatus(msg, color) {
+  const statusEl = document.getElementById('tokenStatus');
+  statusEl.textContent = msg;
+  statusEl.style.color = color || 'var(--muted)';
+}
+
+function applyTokenMatch(data) {
+  el.client.value = data.client;
+  hideClientSuggestions();
+
+  reset(el.student);
+  reset(el.job);
+
+  masterData
+    .filter(d => d.client === data.client)
+    .map(d => d.student)
+    .filter(unique)
+    .sort()
+    .forEach(v => addOption(el.student, v));
+
+  el.student.value = data.student;
+  toggleOther(el.student, otherFields.student);
+
+  masterData
+    .filter(d => d.client === data.client && d.student === data.student)
+    .map(d => d.job)
+    .sort()
+    .forEach(v => addOption(el.job, v));
+
+  el.job.value = data.job;
+  toggleOther(el.job, otherFields.job);
+
+  toggleRitNoteFromClient();
+
+  // If any field didn't actually take (e.g. a whitespace mismatch between
+  // the token's record and masterData), say so rather than submitting a
+  // partially-filled form silently.
+  if (el.client.value !== data.client || el.student.value !== data.student || el.job.value !== data.job) {
+    setTokenStatus('Found a match, but couldn\'t fill in every field automatically — please check Client/User/Job below.', 'var(--error)');
+  }
+}
+
+function lookupPortalToken() {
+  const token = el.portalToken.value.trim();
+  if (!token) { setTokenStatus(''); return; }
+
+  if (el.client.disabled) {
+    setTokenStatus('Still loading class data — try again in a moment.');
+    return;
+  }
+
+  setTokenStatus('Looking up…');
+
+  fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
+    .then(r => r.json())
+    .then(data => {
+      if (data.found) {
+        applyTokenMatch(data);
+        setTokenStatus('Found it — Client/User/Job filled in below. Please confirm they look right.', 'var(--accent)');
+      } else if (data.ambiguous) {
+        setTokenStatus('This token matches more than one class in our system — please contact admin, or use the dropdowns below.', 'var(--error)');
+      } else if (data.unavailable) {
+        setTokenStatus('Portal Token lookup isn\'t set up yet — please use the dropdowns below.');
+      } else {
+        setTokenStatus('No class found for that token. Double check it, or use the dropdowns below.', 'var(--error)');
+      }
+    })
+    .catch(() => {
+      setTokenStatus('Could not reach the server — try again in a moment.', 'var(--error)');
+    });
+}
+
 function send(payload, attempt = 1) {
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
@@ -330,6 +425,7 @@ function loadMasterData(retries = 3) {
 document.addEventListener('DOMContentLoaded', function () {
 
   el = {
+    portalToken: document.getElementById('portalToken'),
     client: document.getElementById('client'),
     student: document.getElementById('student'),
     job: document.getElementById('job'),
@@ -348,6 +444,11 @@ document.addEventListener('DOMContentLoaded', function () {
     student: document.getElementById('studentOther'),
     job: document.getElementById('jobOther')
   };
+
+  el.portalToken.addEventListener('paste', () => setTimeout(lookupPortalToken, 50));
+  el.portalToken.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); lookupPortalToken(); }
+  });
 
   const confirmationCheckbox = document.getElementById('sendConfirmation');
   const confirmationContainer = document.getElementById('confirmationEmailContainer');
@@ -569,6 +670,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const isRIT = (el.client.value || '').trim().toUpperCase() === 'RIT';
     ritNote.style.display = isRIT ? 'block' : 'none';
   }
+  toggleRitNoteFromClient = toggleRitNote;
   el.client.addEventListener('input', toggleRitNote);
   toggleRitNote();
 
@@ -597,6 +699,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     reset(el.student);
     reset(el.job);
+    setTokenStatus('');
 
     el.uploadArea.classList.add('hidden');
     el.issuesWrapper.classList.add('hidden');
