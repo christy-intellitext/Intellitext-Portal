@@ -53,6 +53,11 @@
     #rit-docx-note { color: var(--error) !important; }
     .token-box { border: 1px solid var(--border); background: var(--accent-soft); border-radius: 8px; padding: 14px 16px 16px; margin-bottom: 10px; }
     .token-box label { margin-top: 0; }
+    .resolved-job { margin-top: 10px; padding: 12px 14px; background: var(--accent); color: #fff; border-radius: 6px; font-size: 14px; line-height: 1.6; }
+    .resolved-job div { margin: 2px 0; }
+    .resolved-job strong { font-weight: 700; }
+    .resolved-job .link-btn { color: #fff; opacity: 0.85; margin-top: 8px; display: inline-block; }
+    .resolved-job .link-btn:hover { opacity: 1; color: #fff; }
     .token-hint { font-weight: 400; color: var(--muted); font-size: 13px; }
     #tokenStatus { font-size: 13px; margin-top: 8px; min-height: 16px; }
     .divider-or { text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin: 14px 0; }
@@ -87,6 +92,12 @@
       <label>Have a Portal Token? <span class="token-hint">(from your WhenIWork shift notes — paste it here to skip the dropdowns below)</span></label>
       <input type="text" id="portalToken" placeholder="e.g. BYU-FNM52U" autocomplete="off">
       <div id="tokenStatus"></div>
+      <div id="resolvedJob" class="resolved-job hidden">
+        <div><strong>Client:</strong> <span id="rClient"></span></div>
+        <div><strong>User:</strong> <span id="rStudent"></span></div>
+        <div><strong>Job:</strong> <span id="rJob"></span></div>
+        <button type="button" id="notThisClassBtn" class="link-btn">Not this class? Select manually</button>
+      </div>
     </div>
 
     <div class="divider-or">
@@ -340,15 +351,24 @@ function applyTokenMatch(data) {
   toggleRitNoteFromClient();
 
   // If any field didn't actually take (e.g. a whitespace mismatch between
-  // the token's record and masterData), say so rather than submitting a
-  // partially-filled form silently.
-  if (el.client.value !== data.client || el.student.value !== data.student || el.job.value !== data.job) {
-    setTokenStatus('Found a match, but couldn\'t fill in every field automatically — please check Client/User/Job below.', 'var(--error)');
-  }
+  // the token's record and masterData), report it rather than silently
+  // showing a resolved-class summary that doesn't match what will submit.
+  return el.client.value === data.client && el.student.value === data.student && el.job.value === data.job;
 }
 
 function showManualSection() {
   document.getElementById('manualSection').classList.remove('hidden');
+}
+
+function showResolvedJob(data) {
+  document.getElementById('rClient').textContent = data.client;
+  document.getElementById('rStudent').textContent = data.student;
+  document.getElementById('rJob').textContent = data.job;
+  document.getElementById('resolvedJob').classList.remove('hidden');
+}
+
+function hideResolvedJob() {
+  document.getElementById('resolvedJob').classList.add('hidden');
 }
 
 function lookupPortalToken() {
@@ -361,21 +381,30 @@ function lookupPortalToken() {
   }
 
   setTokenStatus('Looking up…');
+  hideResolvedJob();
 
   fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
     .then(r => r.json())
     .then(data => {
       if (data.found) {
-        applyTokenMatch(data);
-        setTokenStatus('Found it — Client/User/Job filled in below. Please confirm they look right.', 'var(--accent)');
+        const applied = applyTokenMatch(data);
+        if (applied) {
+          showResolvedJob(data);
+          setTokenStatus('Found it — please confirm the class above looks right.', 'var(--accent)');
+        } else {
+          setTokenStatus('Found a match, but couldn\'t fill in every field automatically — please select manually below.', 'var(--error)');
+          showManualSection();
+        }
       } else if (data.ambiguous) {
         setTokenStatus('This token matches more than one class in our system — please contact admin, or use the dropdowns below.', 'var(--error)');
+        showManualSection();
       } else if (data.unavailable) {
         setTokenStatus('Portal Token lookup isn\'t set up yet — please use the dropdowns below.');
+        showManualSection();
       } else {
         setTokenStatus('No class found for that token. Double check it, or use the dropdowns below.', 'var(--error)');
+        showManualSection();
       }
-      showManualSection();
     })
     .catch(() => {
       setTokenStatus('Could not reach the server — try again in a moment.', 'var(--error)');
@@ -476,7 +505,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.key === 'Enter') { e.preventDefault(); lookupPortalToken(); }
   });
 
-  document.getElementById('showManualBtn').addEventListener('click', showManualSection);
+  document.getElementById('showManualBtn').addEventListener('click', () => {
+    hideResolvedJob();
+    showManualSection();
+  });
+
+  document.getElementById('notThisClassBtn').addEventListener('click', () => {
+    hideResolvedJob();
+    showManualSection();
+  });
 
   const confirmationCheckbox = document.getElementById('sendConfirmation');
   const confirmationContainer = document.getElementById('confirmationEmailContainer');
@@ -522,6 +559,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (e.isTrusted) {
       renderClientSuggestions(el.client.value); // real typing only — skip on programmatic selection
       usedPortalToken = false; // manual edit after a token fill means this is no longer a token-driven entry
+      hideResolvedJob();
     }
     masterData
       .filter(d => d.client === el.client.value)
@@ -734,6 +772,7 @@ document.addEventListener('DOMContentLoaded', function () {
     setTokenStatus('');
     usedPortalToken = false;
     document.getElementById('manualSection').classList.add('hidden');
+    hideResolvedJob();
     el.portalToken.value = '';
 
     el.uploadArea.classList.add('hidden');
