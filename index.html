@@ -100,7 +100,7 @@
       </div>
     </div>
 
-    <div class="divider-or">
+    <div class="divider-or" id="dividerOr">
       <button type="button" id="showManualBtn" class="link-btn">I don't have a token — select manually</button>
     </div>
 
@@ -416,10 +416,12 @@ function showResolvedJob(data) {
   document.getElementById('rStudent').textContent = data.student;
   document.getElementById('rJob').textContent = data.job;
   document.getElementById('resolvedJob').classList.remove('hidden');
+  document.getElementById('dividerOr').classList.add('hidden'); // its own "select manually" link covers this now
 }
 
 function hideResolvedJob() {
   document.getElementById('resolvedJob').classList.add('hidden');
+  document.getElementById('dividerOr').classList.remove('hidden');
 }
 
 function lookupPortalToken() {
