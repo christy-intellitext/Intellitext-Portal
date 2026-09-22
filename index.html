@@ -91,7 +91,7 @@
     <div class="token-box">
       <label>Have a Portal Token? <span class="token-hint">(Paste from your WhenIWork shift notes)</span></label>
       <input type="text" id="portalToken" placeholder="e.g. BYU-FNM52U" autocomplete="off">
-      <div id="tokenStatus"></div>
+      <div id="tokenStatus">Loading class data…</div>
       <div id="resolvedJob" class="resolved-job hidden">
         <div><strong>Client:</strong> <span id="rClient"></span></div>
         <div><strong>User:</strong> <span id="rStudent"></span></div>
@@ -429,7 +429,8 @@ function lookupPortalToken() {
   if (!token) { setTokenStatus(''); return; }
 
   if (el.client.disabled) {
-    setTokenStatus('Still loading class data — try again in a moment.');
+    // Token is kept in the box; loadMasterData() runs the lookup as soon as data arrives.
+    setTokenStatus('Loading class data… your token will be checked automatically in a moment.');
     return;
   }
 
@@ -507,6 +508,12 @@ function loadMasterData(retries = 3) {
       document.getElementById('loadingNote').classList.add('hidden');
       handleMasterData(data);
       applyTokenFromUrlIfPresent();
+      // Run any token that was pasted (or came from the URL) while data was loading.
+      if (el.portalToken.value.trim()) {
+        lookupPortalToken();
+      } else {
+        setTokenStatus('');
+      }
     })
     .catch(err => {
       if (retries > 0) {
@@ -517,18 +524,19 @@ function loadMasterData(retries = 3) {
         el.client.placeholder = 'Failed to load — please refresh the page';
         document.getElementById('loadingNote').textContent = 'Please refresh your page.';
         document.getElementById('loadingNote').style.color = 'var(--error)';
+        setTokenStatus('Couldn\'t load class data. Please refresh the page.', 'var(--error)');
       }
     });
 }
 
-// Lets a link like ?token=UMBC-GNAP33 pre-fill and auto-run the lookup, so a
+// Lets a link like ?token=UMBC-GNAP33 pre-fill the token box, so a
 // transcriber can click straight through from shift notes with nothing to
-// paste. Only runs once, right after class data finishes loading.
+// paste. Runs once, right after class data finishes loading; the lookup
+// itself is triggered by loadMasterData(). A token the user already pasted
+// while loading takes priority over the URL one.
 function applyTokenFromUrlIfPresent() {
   const token = new URLSearchParams(window.location.search).get('token');
-  if (!token) return;
-  el.portalToken.value = token;
-  lookupPortalToken();
+  if (token && !el.portalToken.value.trim()) el.portalToken.value = token;
 }
 
 document.addEventListener('DOMContentLoaded', function () {
