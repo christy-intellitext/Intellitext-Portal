@@ -437,8 +437,18 @@ function lookupPortalToken() {
   setTokenStatus('Looking up…');
   hideResolvedJob();
 
-  fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
-    .then(r => r.json())
+  // A ?token= link starts its lookup at page open (see prefetchUrlToken), so
+  // reuse that answer instead of waiting on a second trip to the sheet.
+  let request;
+  if (prefetchedLookup && prefetchedLookup.token === token) {
+    request = prefetchedLookup.promise;
+    prefetchedLookup = null;
+  } else {
+    request = fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
+      .then(r => r.json());
+  }
+
+  request
     .then(data => {
       if (data.found) {
         const applied = applyTokenMatch(data);
@@ -539,6 +549,21 @@ function applyTokenFromUrlIfPresent() {
   if (token && !el.portalToken.value.trim()) el.portalToken.value = token;
 }
 
+// For ?token= links: show the token in the box right away and start the
+// token lookup at the same time as the class data load, rather than one
+// after the other. The result is held until class data is ready.
+let prefetchedLookup = null;
+function prefetchUrlToken() {
+  const token = (new URLSearchParams(window.location.search).get('token') || '').trim();
+  if (!token) return;
+  el.portalToken.value = token;
+  setTokenStatus('Loading class data… your token will be checked automatically in a moment.');
+  const promise = fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
+    .then(r => r.json());
+  promise.catch(() => {}); // handled later in lookupPortalToken
+  prefetchedLookup = { token: token, promise: promise };
+}
+
 document.addEventListener('DOMContentLoaded', function () {
 
   el = {
@@ -590,6 +615,7 @@ document.addEventListener('DOMContentLoaded', function () {
   dateIsAutoSet = true;
   el.client.disabled = true;
   newSubmissionId();
+  prefetchUrlToken();
   loadMasterData();
 
   // ===============================
