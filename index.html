@@ -218,6 +218,62 @@ let dateIsAutoSet = true;
 let toggleRitNoteFromClient = function() {};
 let usedPortalToken = false; // true once a submission's Client/User/Job came from a successful token lookup
 
+// ===============================
+// NETWORK RELIABILITY HELPERS
+// ===============================
+// Requests to Apps Script occasionally stall on the way to or from Google.
+// Without a timeout the page would wait forever on "Loading…", so every
+// read request gives up after 15 seconds and the callers retry.
+const FETCH_TIMEOUT_MS = 15000;
+const MASTER_CACHE_KEY = 'itxPortalMasterData_v1';
+let masterDataReady = false;
+
+function fetchJson(url, timeoutMs = FETCH_TIMEOUT_MS) {
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+  return fetch(url, ctrl ? { signal: ctrl.signal } : {})
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .finally(() => { if (timer) clearTimeout(timer); });
+}
+
+// The class list is saved in the transcriber's browser so the portal opens
+// instantly on repeat visits, even if Google is slow. A fresh copy is
+// always fetched in the background and replaces the saved one.
+function readSavedMasterData() {
+  try {
+    const raw = localStorage.getItem(MASTER_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && Array.isArray(parsed.data) && parsed.data.length) ? parsed.data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveMasterData(data) {
+  try {
+    localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: data }));
+  } catch (e) {
+    // Storage full or blocked (private window, etc.). The portal still works without it.
+  }
+}
+
+// Resolves a token from the class list already in the page, with no
+// server round trip. Returns null when the token isn't in the local list
+// (for example, a class added in the last few minutes), so the caller
+// can fall back to asking the server.
+function findTokenLocally(rawToken) {
+  const token = (rawToken || '').trim().toUpperCase();
+  if (!token) return null;
+  const matches = masterData.filter(d => (d.token || '').toString().trim().toUpperCase() === token);
+  if (!matches.length) return null;
+  if (matches.length > 1) return { found: false, ambiguous: true };
+  return { found: true, client: matches[0].client, student: matches[0].student, job: matches[0].job };
+}
+
 function newSubmissionId() {
   currentSubmissionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
   return currentSubmissionId;
@@ -437,15 +493,19 @@ function lookupPortalToken() {
   setTokenStatus('Looking up…');
   hideResolvedJob();
 
-  // A ?token= link starts its lookup at page open (see prefetchUrlToken), so
-  // reuse that answer instead of waiting on a second trip to the sheet.
+  // First try the class list already in the page (instant). Only if the
+  // token isn't there do we ask the server. A ?token= link may already
+  // have started that server lookup at page open (see prefetchUrlToken).
   let request;
-  if (prefetchedLookup && prefetchedLookup.token === token) {
+  const localMatch = findTokenLocally(token);
+  if (localMatch) {
+    request = Promise.resolve(localMatch);
+    prefetchedLookup = null;
+  } else if (prefetchedLookup && prefetchedLookup.token === token) {
     request = prefetchedLookup.promise;
     prefetchedLookup = null;
   } else {
-    request = fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
-      .then(r => r.json());
+    request = fetchJson(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token));
   }
 
   request
@@ -509,26 +569,51 @@ function send(payload, attempt = 1) {
   });
 }
 
-function loadMasterData(retries = 3) {
-  fetch(APPS_SCRIPT_URL + '?action=getMasterData')
-    .then(r => r.json())
+// Puts class data into the page. The first time it runs, it also unlocks
+// the form and processes any token that was pasted (or came from the URL)
+// while data was loading. Later runs (the background refresh) just swap in
+// the newer list without disturbing what the transcriber has filled in.
+function applyMasterData(data) {
+  handleMasterData(data);
+  if (masterDataReady) return;
+  masterDataReady = true;
+
+  el.client.disabled = false;
+  el.client.placeholder = 'Type to search…';
+  document.getElementById('loadingNote').classList.add('hidden');
+  applyTokenFromUrlIfPresent();
+  if (el.portalToken.value.trim()) {
+    lookupPortalToken();
+  } else {
+    setTokenStatus('');
+  }
+}
+
+function loadMasterData() {
+  // Show the saved list right away if this browser has one...
+  const saved = readSavedMasterData();
+  if (saved) applyMasterData(saved);
+  // ...and always fetch a fresh copy.
+  fetchFreshMasterData(3);
+}
+
+function fetchFreshMasterData(retries) {
+  fetchJson(APPS_SCRIPT_URL + '?action=getMasterData')
     .then(data => {
-      el.client.disabled = false;
-      el.client.placeholder = 'Type to search…';
-      document.getElementById('loadingNote').classList.add('hidden');
-      handleMasterData(data);
-      applyTokenFromUrlIfPresent();
-      // Run any token that was pasted (or came from the URL) while data was loading.
-      if (el.portalToken.value.trim()) {
-        lookupPortalToken();
-      } else {
-        setTokenStatus('');
-      }
+      if (!Array.isArray(data) || !data.length) throw new Error('Empty class data');
+      saveMasterData(data);
+      applyMasterData(data);
     })
     .catch(err => {
       if (retries > 0) {
-        document.getElementById('loadingNote').textContent = 'Still loading, please wait…';
-        setTimeout(() => loadMasterData(retries - 1), 2000);
+        if (!masterDataReady) {
+          document.getElementById('loadingNote').textContent = 'Still loading, please wait…';
+          setTokenStatus('Still loading class data, please wait…');
+        }
+        setTimeout(() => fetchFreshMasterData(retries - 1), 2000);
+      } else if (masterDataReady) {
+        // Already working from the saved list, so carry on quietly.
+        return;
       } else {
         el.client.disabled = false;
         el.client.placeholder = 'Failed to load — please refresh the page';
@@ -556,10 +641,12 @@ let prefetchedLookup = null;
 function prefetchUrlToken() {
   const token = (new URLSearchParams(window.location.search).get('token') || '').trim();
   if (!token) return;
+  if (masterDataReady) return; // saved class list already loaded and handled the URL token
   el.portalToken.value = token;
   setTokenStatus('Loading class data… your token will be checked automatically in a moment.');
-  const promise = fetch(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token))
-    .then(r => r.json());
+  // With a saved class list the token resolves locally, so no server call is needed.
+  if (findTokenLocally(token)) return;
+  const promise = fetchJson(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token));
   promise.catch(() => {}); // handled later in lookupPortalToken
   prefetchedLookup = { token: token, promise: promise };
 }
@@ -615,8 +702,8 @@ document.addEventListener('DOMContentLoaded', function () {
   dateIsAutoSet = true;
   el.client.disabled = true;
   newSubmissionId();
-  prefetchUrlToken();
-  loadMasterData();
+  loadMasterData();   // uses the saved class list instantly when this browser has one
+  prefetchUrlToken(); // only does anything when there was no saved list
 
   // ===============================
   // STALE DATE AUTO-REFRESH
