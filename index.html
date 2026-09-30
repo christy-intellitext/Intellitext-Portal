@@ -206,7 +206,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxR3wKmU2A07W4ArAKbYRG2-6dlrixmCd7EHiGmTzKVBWQN1wTFmQrV9LHRK4fFu-38-Q/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqn8FeOMgN8uALfVsAi0D_EqP_GSdyWXMooFpGxS6pr_TuQr7Kwb0DADt7fFmDHUnHfw/exec';
 
 let masterData = [];
 let clientOptions = [];
@@ -225,7 +225,22 @@ let usedPortalToken = false; // true once a submission's Client/User/Job came fr
 // Without a timeout the page would wait forever on "Loading…", so every
 // read request gives up after 15 seconds and the callers retry.
 const FETCH_TIMEOUT_MS = 15000;
-const MASTER_CACHE_KEY = 'itxPortalMasterData_v1';
+const MASTER_CACHE_KEY = 'itxPortalMasterData_v2';
+
+// The v1 saved list (from before destinations were removed) included
+// transcript destinations. Delete it from every browser that has it.
+try { localStorage.removeItem('itxPortalMasterData_v1'); } catch (e) {}
+
+// Only these fields are ever kept in the page or saved in the browser,
+// even if the server sends more.
+function sanitizeMasterData(data) {
+  return (data || []).map(d => ({
+    client: d.client,
+    student: d.student,
+    job: d.job,
+    token: d.token || ''
+  }));
+}
 let masterDataReady = false;
 
 function fetchJson(url, timeoutMs = FETCH_TIMEOUT_MS) {
@@ -255,7 +270,7 @@ function readSavedMasterData() {
 
 function saveMasterData(data) {
   try {
-    localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: data }));
+    localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: sanitizeMasterData(data) }));
   } catch (e) {
     // Storage full or blocked (private window, etc.). The portal still works without it.
   }
@@ -288,7 +303,7 @@ function getTodayString() {
 }
 
 function handleMasterData(data) {
-  masterData = data;
+  masterData = sanitizeMasterData(data);
   populateClients();
 }
 
@@ -855,12 +870,8 @@ document.addEventListener('DOMContentLoaded', function () {
     el.submitBtn.classList.add('disabled');
     el.submitBtn.textContent = 'Submitting…';
 
-    const selected = masterData.find(d =>
-      d.client === el.client.value &&
-      d.student === el.student.value &&
-      d.job === el.job.value
-    );
-
+    // The transcript destination is looked up on the server at submit time,
+    // so it's never part of the class list the browser receives.
     const manualEntry =
       !masterData.some(d => d.client === el.client.value) ||
       el.student.value === '__OTHER__' ||
@@ -886,7 +897,6 @@ document.addEventListener('DOMContentLoaded', function () {
       job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
       date: el.date.value,
       outcome: el.outcome.value,
-      destination: manualEntry ? '' : (selected?.destination || ''),
       manualEntry,
       viaPortalToken: usedPortalToken,
       issues,
