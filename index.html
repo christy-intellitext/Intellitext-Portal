@@ -40,6 +40,10 @@
     .segmented { display: flex; gap: 10px; margin-top: 10px; }
     .segmented button { flex: 1; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
     .segmented button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .choice-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .choice-list button { text-align: left; margin-top: 0; padding: 10px 12px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
+    .choice-list button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .choice-hint { display: block; font-weight: 400; font-size: 12px; opacity: 0.8; margin-top: 2px; }
     .issue-block { border: 1px solid var(--border); padding: 10px; margin-top: 10px; background: var(--accent-soft); border-radius: 6px; }
     button[type="submit"] { margin-top: 25px; background: var(--accent); color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; border-radius: 6px; }
     button[type="submit"]:hover { background: var(--accent-dark); }
@@ -131,7 +135,7 @@
     <input type="date" id="date" required>
 
     <label>Outcome</label>
-    <div class="segmented">
+    <div class="segmented" id="outcomeButtons">
       <button type="button" data-value="attended">Transcription provided</button>
       <button type="button" data-value="noshow">No-show</button>
       <button type="button" data-value="late_cancel">Late cancel / dismissed</button>
@@ -144,15 +148,22 @@
     </div>
 
     <div id="uploadArea" class="hidden">
-      <label>Upload Transcript</label>
-      <input type="file" id="file">
-      <label style="font-weight:500; margin-top:8px;">
-        <input type="checkbox" id="noTranscriptNeeded" style="width:auto; display:inline-block; margin-right:6px;">
-        No transcript needed or someone else is handling delivery
-      </label>
-      <p id="rit-docx-note" style="display:none; margin-top:6px; font-size:13px; font-weight:600;">
-        RIT transcripts must be uploaded in <strong>.docx</strong> format.
-      </p>
+      <label>Transcript</label>
+      <div class="choice-list" id="deliveryChoices">
+        <button type="button" data-value="upload">I have a transcript to upload</button>
+        <button type="button" data-value="teammate">My Intellitext teammate is uploading</button>
+        <button type="button" data-value="client_teammate">A school/client captioner is handling delivery</button>
+        <button type="button" data-value="not_needed">No transcript needed for this job<span class="choice-hint">Rare. Only for jobs that never need a transcript.</span></button>
+      </div>
+      <input type="hidden" id="deliveryMode">
+
+      <div id="fileArea" class="hidden">
+        <label>Upload Transcript</label>
+        <input type="file" id="file">
+        <p id="rit-docx-note" style="display:none; margin-top:6px; font-size:13px; font-weight:600;">
+          RIT transcripts must be uploaded in <strong>.docx</strong> format.
+        </p>
+      </div>
     </div>
 
     <div id="issuesWrapper" class="hidden">
@@ -206,7 +217,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxkq7O1V2-yS5O6pVri7vjNHsSiY1Wmk3nJbJpYkPrlRpMHole_G6BR8hMO5tr2s40LJQ/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwGoHdtghwQw5YP3gZa8Ls2muZL_1p2h_cge-dBrgPXdgvdWyG4QkYQ94mr7g0ImsW68w/exec';
 
 let masterData = [];
 let clientOptions = [];
@@ -375,6 +386,25 @@ function toggleOther(select, field) {
 function showDupModal(message) {
   document.getElementById('dupModalMessage').textContent = message;
   document.getElementById('dupModalOverlay').classList.remove('hidden');
+}
+
+// ===============================
+// TRANSCRIPT DELIVERY CHOICE
+// ===============================
+// Shown under "Transcription provided". One of four is required:
+//   upload           I have a transcript to upload (shows the file box)
+//   teammate         My Intellitext teammate is uploading (record only)
+//   client_teammate  A school/client captioner is handling delivery
+//   not_needed       No transcript needed for this job (rare, admin is notified)
+// Passing '' clears the choice.
+function setDeliveryMode(mode) {
+  el.deliveryMode.value = mode || '';
+  document.querySelectorAll('#deliveryChoices button').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === mode);
+  });
+  const isUpload = mode === 'upload';
+  el.fileArea.classList.toggle('hidden', !isUpload);
+  if (!isUpload && el.file) el.file.value = '';
 }
 
 // ===============================
@@ -678,8 +708,9 @@ document.addEventListener('DOMContentLoaded', function () {
     lateCancelCommentArea: document.getElementById('lateCancelCommentArea'),
     lateCancelComment: document.getElementById('lateCancelComment'),
     uploadArea: document.getElementById('uploadArea'),
+    deliveryMode: document.getElementById('deliveryMode'),
+    fileArea: document.getElementById('fileArea'),
     file: document.getElementById('file'),
-    noTranscriptNeeded: document.getElementById('noTranscriptNeeded'),
     issuesWrapper: document.getElementById('issuesWrapper'),
     submitBtn: document.getElementById('submitBtn')
   };
@@ -804,9 +835,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
   el.job.addEventListener('change', () => toggleOther(el.job, otherFields.job));
 
-  document.querySelectorAll('.segmented button').forEach(btn => {
+  document.querySelectorAll('#outcomeButtons button').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#outcomeButtons button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const map = { attended: 'Attended', noshow: 'No-Show', late_cancel: 'Late Notice Cancellation' };
       const resolvedOutcome = map[btn.dataset.value];
@@ -820,20 +851,13 @@ document.addEventListener('DOMContentLoaded', function () {
         el.lateCancelComment.value = '';
       }
       if (!isAttended) {
-        el.noTranscriptNeeded.checked = false;
-        el.file.disabled = false;
-        el.file.value = '';
+        setDeliveryMode('');
       }
     });
   });
 
-  el.noTranscriptNeeded.addEventListener('change', () => {
-    if (el.noTranscriptNeeded.checked) {
-      el.file.value = '';
-      el.file.disabled = true;
-    } else {
-      el.file.disabled = false;
-    }
+  document.querySelectorAll('#deliveryChoices button').forEach(btn => {
+    btn.addEventListener('click', () => setDeliveryMode(btn.dataset.value));
   });
 
   document.querySelectorAll('.issue-block input[type="checkbox"]').forEach(cb => {
@@ -846,12 +870,18 @@ document.addEventListener('DOMContentLoaded', function () {
   document.getElementById('reportForm').addEventListener('submit', e => {
     e.preventDefault();
 
-    if (el.outcome.value === 'Attended' && !el.noTranscriptNeeded.checked && !el.file.files[0]) {
-      alert('Please upload a transcript or select "No transcript needed."');
-      return;
-    }
     if (!el.outcome.value) {
       alert('Please select an outcome before submitting.');
+      return;
+    }
+    const isAttended = el.outcome.value === 'Attended';
+    const deliveryMode = isAttended ? el.deliveryMode.value : '';
+    if (isAttended && !deliveryMode) {
+      alert('Please choose one of the transcript options before submitting.');
+      return;
+    }
+    if (deliveryMode === 'upload' && !el.file.files[0]) {
+      alert('Please choose your transcript file to upload.');
       return;
     }
     if (confirmationCheckbox.checked && !confirmationEmailInput.value.trim()) {
@@ -901,12 +931,14 @@ document.addEventListener('DOMContentLoaded', function () {
       viaPortalToken: usedPortalToken,
       issues,
       lateCancelComment,
-      noTranscriptNeeded: el.noTranscriptNeeded.checked === true,
+      deliveryMode,
+      // Kept for the backend's older checks: true for every choice except upload
+      noTranscriptNeeded: isAttended && deliveryMode !== 'upload',
       sendConfirmation: confirmationCheckbox.checked,
       confirmationEmail: confirmationCheckbox.checked ? confirmationEmailInput.value.trim() : ''
     };
 
-    if (el.file.files[0]) {
+    if (deliveryMode === 'upload' && el.file.files[0]) {
       const reader = new FileReader();
       reader.onload = () => {
         payload.fileData = reader.result.split(',')[1];
@@ -965,10 +997,11 @@ document.addEventListener('DOMContentLoaded', function () {
     el.lateCancelCommentArea.classList.add('hidden');
     el.lateCancelComment.value = '';
     confirmationContainer.classList.add('hidden');
+    setDeliveryMode('');
 
     document.querySelectorAll('.issue-block textarea').forEach(ta => ta.classList.add('hidden'));
     document.querySelectorAll('.issue-block input[type="checkbox"]').forEach(cb => cb.checked = false);
-    document.querySelectorAll('.segmented button').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('#outcomeButtons button').forEach(b => b.classList.remove('active'));
 
     el.outcome.value = '';
     el.submitBtn.disabled = false;
