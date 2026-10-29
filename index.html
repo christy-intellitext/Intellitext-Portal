@@ -2,6 +2,9 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <!-- Bump this every time you publish a change. Open portals compare it to
+       the live file and offer a one-click reload when they're out of date. -->
+  <meta name="portal-version" content="2026-10-29a">
   <title>Class Reporting Portal</title>
   <link rel="icon" type="image/png" href="https://i.imgur.com/YkhiJRe.png">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -67,6 +70,11 @@
     .divider-or { text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin: 14px 0; }
     .link-btn { width: auto; background: none; border: none; padding: 0; margin: 0; color: var(--accent); font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; text-decoration: underline; }
     .link-btn:hover { color: var(--accent-dark); }
+    .update-banner {
+      background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink);
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; text-align: center;
+    }
+    .update-banner .link-btn { margin-left: 6px; }
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(33, 47, 54, 0.5);
       display: flex; align-items: center; justify-content: center; z-index: 100;
@@ -86,6 +94,11 @@
 </head>
 <body>
 <div class="form-container">
+
+  <div id="updateBanner" class="update-banner hidden">
+    A newer version of the portal is available.
+    <button type="button" id="updateReloadBtn" class="link-btn">Reload now</button>
+  </div>
 
   <img src="https://i.imgur.com/YkhiJRe.png" alt="Intellitext"
     style="display:block; margin:0 auto 20px; max-width:200px;">
@@ -265,6 +278,34 @@ function fetchJson(url, timeoutMs = FETCH_TIMEOUT_MS) {
     .finally(() => { if (timer) clearTimeout(timer); });
 }
 
+// ===============================
+// NEWER VERSION CHECK
+// ===============================
+// Compares the portal-version meta tag in this page with the one in the
+// live file. If you've published an update since this page was opened,
+// a banner offers a one-click reload. Fetching with cache 'reload' also
+// refreshes the browser's stored copy, so the reload gets the new file.
+// Checks on open and whenever the tab comes back into view.
+function getVersionFrom(doc) {
+  const meta = doc.querySelector('meta[name="portal-version"]');
+  return meta ? (meta.getAttribute('content') || '').trim() : '';
+}
+
+function checkForNewerVersion() {
+  const current = getVersionFrom(document);
+  if (!current) return;
+  fetch(window.location.href.split('#')[0], { cache: 'reload' })
+    .then(r => r.ok ? r.text() : '')
+    .then(html => {
+      if (!html) return;
+      const live = getVersionFrom(new DOMParser().parseFromString(html, 'text/html'));
+      if (live && live !== current) {
+        document.getElementById('updateBanner').classList.remove('hidden');
+      }
+    })
+    .catch(() => {}); // a failed check never gets in the way of reporting
+}
+
 // The class list is saved in the transcriber's browser so the portal opens
 // instantly on repeat visits, even if Google is slow. A fresh copy is
 // always fetched in the background and replaces the saved one.
@@ -298,6 +339,25 @@ function findTokenLocally(rawToken) {
   if (!matches.length) return null;
   if (matches.length > 1) return { found: false, ambiguous: true };
   return { found: true, client: matches[0].client, student: matches[0].student, job: matches[0].job };
+}
+
+// When the server finds a class the page's list doesn't have yet (a class
+// added since this browser last saved the list), add that row to the list
+// in the page so the User and Job dropdowns can be filled from it. Then
+// fetch a fresh list in the background so the saved copy catches up.
+function ensureClassInMasterData(data, token) {
+  const exists = masterData.some(d =>
+    d.client === data.client && d.student === data.student && d.job === data.job
+  );
+  if (exists) return;
+  masterData.push({
+    client: data.client,
+    student: data.student,
+    job: data.job,
+    token: (token || '').trim()
+  });
+  populateClients();
+  fetchFreshMasterData(1);
 }
 
 function newSubmissionId() {
@@ -556,6 +616,9 @@ function lookupPortalToken() {
   request
     .then(data => {
       if (data.found) {
+        // A class the server knows about but this page's list doesn't yet
+        // (added recently) gets added here, so the dropdowns can fill.
+        ensureClassInMasterData(data, token);
         const applied = applyTokenMatch(data);
         if (applied) {
           showResolvedJob(data);
@@ -719,6 +782,14 @@ document.addEventListener('DOMContentLoaded', function () {
     student: document.getElementById('studentOther'),
     job: document.getElementById('jobOther')
   };
+
+  // Newer version check: once on open, and again whenever the tab comes
+  // back into view (covers portals left open for hours or days).
+  document.getElementById('updateReloadBtn').addEventListener('click', () => window.location.reload());
+  checkForNewerVersion();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewerVersion();
+  });
 
   el.portalToken.addEventListener('paste', () => setTimeout(lookupPortalToken, 50));
   el.portalToken.addEventListener('keydown', (e) => {
