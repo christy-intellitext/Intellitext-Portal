@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <!-- Bump this every time you publish a change. Open portals compare it to
        the live file and offer a one-click reload when they're out of date. -->
-  <meta name="portal-version" content="2026-11-02a">
+  <meta name="portal-version" content="2026-11-02b">
   <title>Class Reporting Portal</title>
   <link rel="icon" type="image/png" href="https://i.imgur.com/YkhiJRe.png">
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -249,8 +249,10 @@
       <p><strong>What was the reason for the late cancel / dismissal?</strong></p>
       <div class="choice-list" id="reasonChoices">
         <button type="button" data-value="Student/user absence">Student/user absence</button>
-        <button type="button" data-value="Instructor cancelled">Instructor cancellation</button>
+        <button type="button" data-value="Instructor cancellation">Instructor cancellation</button>
         <button type="button" data-value="Transcription not needed today">Transcription not needed today</button>
+        <button type="button" data-value="Campus or weather-related closure">Campus or weather-related closure</button>
+        <button type="button" data-value="Student dropped/cancelled request">Student dropped/cancelled request</button>
       </div>
       <button type="button" id="reasonModalCancel" class="link-btn">Cancel</button>
     </div>
@@ -259,7 +261,7 @@
 </div>
 
 <script>
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwU0CYgugVI8SYbpedf2RGidh5VGMkEqfypUBoXVRhDqJm655YnwNQ3ES7-_n6XMnGuKA/exec';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwYvOHZ-XyeCbAYE5AxY8mCOitE421s56li1CjK96jQwPgA6MH-0NHLBafFh0ePRg/exec';
 
 let masterData = [];
 let clientOptions = [];
