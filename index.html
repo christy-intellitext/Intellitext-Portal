@@ -1,1269 +1,1200 @@
-// ===============================
-// WEB APP ENTRY POINT
-// ===============================
-function doGet(e) {
-  if (e.parameter.action === 'getMasterData') {
-    return ContentService
-      .createTextOutput(getMasterDataJson())
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <!-- Bump this every time you publish a change. Open portals compare it to
+       the live file and offer a one-click reload when they're out of date. -->
+  <meta name="portal-version" content="2026-11-23a">
+  <title>Class Reporting Portal</title>
+  <link rel="icon" type="image/png" href="https://i.imgur.com/YkhiJRe.png">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #eef2f4;
+      --surface: #ffffff;
+      --ink: #212f36;
+      --muted: #62767d;
+      --border: #c7d4d8;
+      --accent: #1f5f6b;
+      --accent-dark: #163f47;
+      --accent-soft: #dbe8ea;
+      --error: #b3261e;
+    }
+    body { font-family: 'Manrope', sans-serif; background: var(--bg); padding: 40px; color: var(--ink); }
+    .form-container { background: var(--surface); max-width: 800px; margin: auto; padding: 30px; border-radius: 12px; box-shadow: 0 1px 3px rgba(33, 47, 54, 0.08); }
+    label { font-weight: 600; display: block; margin-top: 16px; color: var(--ink); }
+    select, option, textarea, input[type="date"], input[type="file"], input[type="text"], input[type="email"], button {
+      font-family: 'Manrope', sans-serif; width: 100%; padding: 8px; margin-top: 6px;
+      border: 1px solid var(--border); border-radius: 6px; color: var(--ink); background: var(--surface);
+    }
+    .autocomplete-wrap { position: relative; }
+    .suggestions-list {
+      position: absolute; top: 100%; left: 0; right: 0; z-index: 20;
+      background: var(--surface); border: 1px solid var(--border); border-top: none;
+      border-radius: 0 0 6px 6px; max-height: 220px; overflow-y: auto;
+      box-shadow: 0 4px 10px rgba(33, 47, 54, 0.12);
+    }
+    .suggestions-list .suggestion-item { padding: 8px 10px; cursor: pointer; font-size: 14px; }
+    .suggestions-list .suggestion-item:hover,
+    .suggestions-list .suggestion-item.active { background: var(--accent-soft); }
+    .suggestions-list .suggestion-empty { padding: 8px 10px; font-size: 13px; color: var(--muted); cursor: default; }
+    textarea { min-height: 70px; }
+    .hidden { display: none !important; }
+    .segmented { display: flex; gap: 10px; margin-top: 10px; }
+    .segmented button { flex: 1; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
+    .segmented button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .choice-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .choice-list button { text-align: left; margin-top: 0; padding: 10px 12px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
+    .choice-list button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .choice-hint { display: block; font-weight: 400; font-size: 12px; opacity: 0.8; margin-top: 2px; }
+    .issue-block { border: 1px solid var(--border); padding: 10px; margin-top: 10px; background: var(--accent-soft); border-radius: 6px; }
+    button[type="submit"] { margin-top: 25px; background: var(--accent); color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; border-radius: 6px; }
+    button[type="submit"]:hover { background: var(--accent-dark); }
+    button.disabled { background: #9fb1b6; cursor: not-allowed; opacity: 0.7; }
+    #successView { text-align: center; }
+    #date { width: 180px; }
+    #successView h2 { color: var(--accent); }
+    #loadingNote { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    #logAnotherBtn { margin-top: 16px; background: var(--accent); color: #fff; border: none; font-size: 16px; cursor: pointer; width: auto; padding: 10px 16px; border-radius: 6px; }
+    #logAnotherBtn:hover { background: var(--accent-dark); }
+    #rit-docx-note { color: var(--error) !important; }
+    .token-box { border: 1px solid var(--border); background: var(--accent-soft); border-radius: 8px; padding: 14px 16px 16px; margin-bottom: 10px; }
+    .token-box label { margin-top: 0; }
+    .resolved-job { margin-top: 10px; padding: 12px 14px; background: var(--accent); color: #fff; border-radius: 6px; font-size: 14px; line-height: 1.6; }
+    .resolved-job div { margin: 2px 0; }
+    .resolved-job strong { font-weight: 700; }
+    .resolved-job .link-btn { color: #fff; opacity: 0.85; margin-top: 8px; display: inline-block; }
+    .resolved-job .link-btn:hover { opacity: 1; color: #fff; }
+    .token-hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+    #tokenStatus { font-size: 13px; margin-top: 8px; min-height: 16px; }
+    .divider-or { text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; margin: 14px 0; }
+    .link-btn { width: auto; background: none; border: none; padding: 0; margin: 0; color: var(--accent); font-family: 'Manrope', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; text-decoration: underline; }
+    .link-btn:hover { color: var(--accent-dark); }
+    .update-banner {
+      background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink);
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; text-align: center;
+    }
+    .update-banner .link-btn { margin-left: 6px; }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(33, 47, 54, 0.5);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal-box {
+      background: var(--surface); max-width: 400px; width: 90%;
+      padding: 24px; border-radius: 12px; box-shadow: 0 4px 16px rgba(33, 47, 54, 0.2);
+      text-align: center;
+    }
+    .modal-box p { margin: 0 0 20px; color: var(--ink); line-height: 1.5; }
+    .modal-box button {
+      background: var(--accent); color: #fff; border: none; font-size: 15px;
+      cursor: pointer; width: auto; padding: 8px 20px; border-radius: 6px;
+    }
+    .modal-box button:hover { background: var(--accent-dark); }
+    .modal-box .choice-list button {
+      width: 100%; background: var(--surface); color: var(--ink);
+      border: 1px solid var(--border); padding: 10px 12px; font-size: 15px; text-align: left;
+    }
+    .modal-box .choice-list button:hover { background: var(--accent-soft); }
+    .modal-box .choice-list button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .modal-box .link-btn, .modal-box .link-btn:hover {
+      background: none; color: var(--accent); padding: 0; margin-top: 18px; font-size: 12px;
+    }
+    .modal-box p.reason-question { margin-bottom: 6px; }
+    .modal-box p.reason-hint { margin-bottom: 16px; font-size: 13px; color: var(--muted); }
+    .reason-summary { margin-top: 12px; font-size: 14px; }
+    .reason-summary .link-btn { margin-left: 8px; }
+  </style>
+</head>
+<body>
+<div class="form-container">
 
-  if (e.parameter.action === 'lookupToken') {
-    const result = lookupByToken(e.parameter.token || '');
-    return ContentService
-      .createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
+  <div id="updateBanner" class="update-banner hidden">
+    A newer version of the portal is available.
+    <button type="button" id="updateReloadBtn" class="link-btn">Reload now</button>
+  </div>
+
+  <img src="https://i.imgur.com/YkhiJRe.png" alt="Intellitext"
+    style="display:block; margin:0 auto 20px; max-width:200px;">
+
+  <form id="reportForm">
+
+    <div class="token-box">
+      <label>Have a Portal Token? <span class="token-hint">(Paste from your WhenIWork shift notes)</span></label>
+      <input type="text" id="portalToken" placeholder="e.g. BYU-FNM52U" autocomplete="off">
+      <div id="tokenStatus">Loading class data…</div>
+      <div id="resolvedJob" class="resolved-job hidden">
+        <div><strong>Client:</strong> <span id="rClient"></span></div>
+        <div><strong>User:</strong> <span id="rStudent"></span></div>
+        <div><strong>Job:</strong> <span id="rJob"></span></div>
+        <button type="button" id="notThisClassBtn" class="link-btn">Not this class? Select manually</button>
+      </div>
+    </div>
+
+    <div class="divider-or" id="dividerOr">
+      <button type="button" id="showManualBtn" class="link-btn">I don't have a token — select manually</button>
+    </div>
+
+    <div id="manualSection" class="hidden">
+      <label>Client</label>
+      <div class="autocomplete-wrap">
+        <input type="text" id="client" placeholder="Loading…" autocomplete="off" disabled required>
+        <div id="clientSuggestions" class="suggestions-list hidden"></div>
+      </div>
+      <div id="loadingNote">Loading, please wait…</div>
+
+      <label>User</label>
+      <select id="student" required>
+        <option value="">Select User</option>
+        <option value="__OTHER__">Other / Not Listed</option>
+      </select>
+      <input type="text" id="studentOther" class="hidden" placeholder="Enter user name">
+
+      <label>Job</label>
+      <select id="job" required>
+        <option value="">Select Job</option>
+        <option value="__OTHER__">Other / Not Listed</option>
+      </select>
+      <input type="text" id="jobOther" class="hidden" placeholder="Enter job name">
+    </div>
+
+    <label>Date of job - please verify</label>
+    <input type="date" id="date" required>
+
+    <label>Outcome</label>
+    <div class="segmented" id="outcomeButtons">
+      <button type="button" data-value="attended">Transcription provided</button>
+      <button type="button" data-value="noshow">No-show</button>
+      <button type="button" data-value="late_cancel">Late cancel / dismissed</button>
+    </div>
+    <input type="hidden" id="outcome" required>
+
+    <input type="hidden" id="lateCancelReason">
+
+    <div id="lateCancelCommentArea" class="hidden">
+      <div class="reason-summary">
+        Reason: <strong id="lateCancelReasonText"></strong>
+        <button type="button" id="changeReasonBtn" class="link-btn">Change</button>
+      </div>
+      <label>Comment (optional)</label>
+      <textarea id="lateCancelComment" placeholder="If desired, share details about this late cancel here…"></textarea>
+    </div>
+
+    <div id="uploadArea" class="hidden">
+      <label>Transcript</label>
+      <div class="choice-list" id="deliveryChoices">
+        <button type="button" data-value="upload">I have a transcript to upload</button>
+        <button type="button" data-value="teammate">My Intellitext teammate is uploading</button>
+        <button type="button" data-value="client_teammate">A school/client captioner is handling delivery</button>
+        <button type="button" data-value="not_needed">No transcript needed for this job<span class="choice-hint">Rare. Only for jobs that never need a transcript.</span></button>
+      </div>
+      <input type="hidden" id="deliveryMode">
+
+      <div id="fileArea" class="hidden">
+        <label>Upload Transcript</label>
+        <input type="file" id="file">
+        <p id="rit-docx-note" style="display:none; margin-top:6px; font-size:13px; font-weight:600;">
+          RIT transcripts must be uploaded in <strong>.docx</strong> format.
+        </p>
+      </div>
+    </div>
+
+    <div id="issuesWrapper" class="hidden">
+      <label>Issues to report (optional)</label>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Audio Issues" style="width:auto; display:inline-block; margin-right:6px;"> Audio Issues</label>
+        <textarea class="hidden"></textarea>
+      </div>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Upcoming Schedule Changes" style="width:auto; display:inline-block; margin-right:6px;"> Upcoming Schedule Changes</label>
+        <textarea class="hidden"></textarea>
+      </div>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Overages/Class Ran Long" style="width:auto; display:inline-block; margin-right:6px;"> Overages/Class Ran Long</label>
+        <textarea class="hidden"></textarea>
+      </div>
+      <div class="issue-block">
+        <label><input type="checkbox" data-type="Other / Misc" style="width:auto; display:inline-block; margin-right:6px;"> Other / Misc</label>
+        <textarea class="hidden"></textarea>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <label style="font-weight:500;">
+        <input type="checkbox" id="sendConfirmation" style="width:auto; display:inline-block; margin-right:6px;">
+        Send a confirmation email
+      </label>
+    </div>
+
+    <div id="confirmationEmailContainer" class="hidden">
+      <label>Email address(es) <span class="token-hint">(Teamed class? Add your teammates' emails too, separated by commas, so everyone gets a copy of this report.)</span></label>
+      <!-- type="text" (not "email") so the browser doesn't reject a comma-separated list; the server checks each address -->
+      <input type="text" id="confirmationEmail" inputmode="email" autocomplete="email" placeholder="you@example.com, teammate@example.com">
+    </div>
+
+    <button id="submitBtn" type="submit">Submit</button>
+  </form>
+
+  <div id="successView" class="hidden">
+    <h2>Report Submitted</h2>
+    <p>Your job report has been successfully logged.</p>
+    <button id="logAnotherBtn">Submit Another Report</button>
+  </div>
+
+  <div id="dupModalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p id="dupModalMessage"></p>
+      <button id="dupModalOk">OK</button>
+    </div>
+  </div>
+
+  <div id="reasonModalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <p class="reason-question"><strong>What was the reason for the late cancel / dismissal?</strong></p>
+      <p class="reason-hint">Just pick the closest fit. You can add details in the comment box if needed.</p>
+      <div class="choice-list" id="reasonChoices">
+        <button type="button" data-value="Student/user absence">Student/user absence</button>
+        <button type="button" data-value="Instructor cancellation">Instructor cancellation</button>
+        <button type="button" data-value="Transcription not needed today">Transcription not needed today</button>
+        <button type="button" data-value="Campus or weather-related closure">Campus or weather-related closure</button>
+        <button type="button" data-value="Student dropped/cancelled request">Student dropped/cancelled request</button>
+      </div>
+      <button type="button" id="reasonModalCancel" class="link-btn">Cancel</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw7kR9mGFWSn1gZlPp1P9n0d7NUVSy4pefFCSv9dYtiwNGvHXxbrnbNYe5aYklqXUPwMQ/exec';
+
+let masterData = [];
+let clientOptions = [];
+let activeSuggestionIndex = -1;
+let el = {};
+let otherFields = {};
+let currentSubmissionId = null;
+let dateIsAutoSet = true;
+let toggleRitNoteFromClient = function() {};
+let usedPortalToken = false; // true once a submission's Client/User/Job came from a successful token lookup
+
+// ===============================
+// NETWORK RELIABILITY HELPERS
+// ===============================
+// Requests to Apps Script occasionally stall on the way to or from Google.
+// Without a timeout the page would wait forever on "Loading…", so every
+// read request gives up after 15 seconds and the callers retry.
+const FETCH_TIMEOUT_MS = 15000;
+const MASTER_CACHE_KEY = 'itxPortalMasterData_v2';
+
+// The v1 saved list (from before destinations were removed) included
+// transcript destinations. Delete it from every browser that has it.
+try { localStorage.removeItem('itxPortalMasterData_v1'); } catch (e) {}
+
+// Only these fields are ever kept in the page or saved in the browser,
+// even if the server sends more.
+function sanitizeMasterData(data) {
+  return (data || []).map(d => ({
+    client: d.client,
+    student: d.student,
+    job: d.job,
+    token: d.token || ''
+  }));
+}
+let masterDataReady = false;
+
+function fetchJson(url, timeoutMs = FETCH_TIMEOUT_MS) {
+  const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null;
+  return fetch(url, ctrl ? { signal: ctrl.signal } : {})
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .finally(() => { if (timer) clearTimeout(timer); });
+}
+
+// ===============================
+// NEWER VERSION CHECK
+// ===============================
+// Compares the portal-version meta tag in this page with the one in the
+// live file. If you've published an update since this page was opened,
+// a banner offers a one-click reload. Fetching with cache 'reload' also
+// refreshes the browser's stored copy, so the reload gets the new file.
+// Checks on open and whenever the tab comes back into view.
+function getVersionFrom(doc) {
+  const meta = doc.querySelector('meta[name="portal-version"]');
+  return meta ? (meta.getAttribute('content') || '').trim() : '';
+}
+
+function checkForNewerVersion() {
+  const current = getVersionFrom(document);
+  if (!current) return;
+  fetch(window.location.href.split('#')[0], { cache: 'reload' })
+    .then(r => r.ok ? r.text() : '')
+    .then(html => {
+      if (!html) return;
+      const live = getVersionFrom(new DOMParser().parseFromString(html, 'text/html'));
+      if (live && live !== current) {
+        document.getElementById('updateBanner').classList.remove('hidden');
+      }
+    })
+    .catch(() => {}); // a failed check never gets in the way of reporting
+}
+
+// The class list is saved in the transcriber's browser so the portal opens
+// instantly on repeat visits, even if Google is slow. A fresh copy is
+// always fetched in the background and replaces the saved one.
+function readSavedMasterData() {
+  try {
+    const raw = localStorage.getItem(MASTER_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return (parsed && Array.isArray(parsed.data) && parsed.data.length) ? parsed.data : null;
+  } catch (e) {
+    return null;
   }
 }
 
-function doPost(e) {
-  const payload = JSON.parse(e.postData.contents);
-  const result = processSubmission(payload);
-  return ContentService
-    .createTextOutput(JSON.stringify(result || { success: true }))
-    .setMimeType(ContentService.MimeType.JSON);
+function saveMasterData(data) {
+  try {
+    localStorage.setItem(MASTER_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), data: sanitizeMasterData(data) }));
+  } catch (e) {
+    // Storage full or blocked (private window, etc.). The portal still works without it.
+  }
+}
+
+// Resolves a token from the class list already in the page, with no
+// server round trip. Returns null when the token isn't in the local list
+// (for example, a class added in the last few minutes), so the caller
+// can fall back to asking the server.
+function findTokenLocally(rawToken) {
+  const token = (rawToken || '').trim().toUpperCase();
+  if (!token) return null;
+  const matches = masterData.filter(d => (d.token || '').toString().trim().toUpperCase() === token);
+  if (!matches.length) return null;
+  if (matches.length > 1) return { found: false, ambiguous: true };
+  return { found: true, client: matches[0].client, student: matches[0].student, job: matches[0].job };
+}
+
+// When the server finds a class the page's list doesn't have yet (a class
+// added since this browser last saved the list), add that row to the list
+// in the page so the User and Job dropdowns can be filled from it. Then
+// fetch a fresh list in the background so the saved copy catches up.
+function ensureClassInMasterData(data, token) {
+  const exists = masterData.some(d =>
+    d.client === data.client && d.student === data.student && d.job === data.job
+  );
+  if (exists) return;
+  masterData.push({
+    client: data.client,
+    student: data.student,
+    job: data.job,
+    token: (token || '').trim()
+  });
+  populateClients();
+  fetchFreshMasterData(1);
+}
+
+function newSubmissionId() {
+  currentSubmissionId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+  return currentSubmissionId;
+}
+
+function getTodayString() {
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function handleMasterData(data) {
+  masterData = sanitizeMasterData(data);
+  populateClients();
+}
+
+function populateClients() {
+  clientOptions = [...new Set(masterData.map(d => d.client))].sort();
+}
+
+function renderClientSuggestions(query) {
+  const box = document.getElementById('clientSuggestions');
+  const q = query.trim().toLowerCase();
+
+  const matches = q
+    ? clientOptions.filter(c => c.toLowerCase().startsWith(q))
+    : clientOptions;
+
+  activeSuggestionIndex = -1;
+
+  if (!matches.length) {
+    box.innerHTML = '<div class="suggestion-empty">No matching clients</div>';
+    box.classList.remove('hidden');
+    return;
+  }
+
+  box.innerHTML = matches.map((c, i) =>
+    `<div class="suggestion-item" data-index="${i}" data-value="${c.replace(/"/g, '&quot;')}">${c}</div>`
+  ).join('');
+  box.classList.remove('hidden');
+
+  box.querySelectorAll('.suggestion-item').forEach(item => {
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // keep focus so blur doesn't close the list before the click registers
+      selectClient(item.dataset.value);
+    });
+  });
+}
+
+function selectClient(value) {
+  el.client.value = value;
+  hideClientSuggestions();
+  el.client.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function hideClientSuggestions() {
+  document.getElementById('clientSuggestions').classList.add('hidden');
+  activeSuggestionIndex = -1;
+}
+
+function addOption(select, value) {
+  const o = document.createElement('option');
+  o.value = value;
+  o.textContent = value;
+  select.appendChild(o);
+}
+
+function reset(select) {
+  select.innerHTML =
+    '<option value="">Select</option>' +
+    '<option value="__OTHER__">Other / Not Listed</option>';
+}
+
+function unique(v, i, a) { return a.indexOf(v) === i; }
+
+function toggleOther(select, field) {
+  const show = select.value === '__OTHER__';
+  field.classList.toggle('hidden', !show);
+  if (!show) field.value = '';
+}
+
+function showDupModal(message) {
+  document.getElementById('dupModalMessage').textContent = message;
+  document.getElementById('dupModalOverlay').classList.remove('hidden');
 }
 
 // ===============================
-// CONFIG
+// TRANSCRIPT DELIVERY CHOICE
 // ===============================
-const MASTER_CLASS_LIST_ID = '1Uz9wc8RubDLXTPsTLCOTVhkfGU8tan7iBVA5RolierI';
-const RESPONSE_SHEET_ID   = '1u7spgXIxy17oL3U7QWh--sj9ZaiQBhjz92m-xj5hGas';
-
-const ADMIN_EMAIL = 'admin@intellitext-nv.com';
-const NOTES_CC   = 'notes@intellitext-nv.com';
-const FROM_ALIAS = 'transcriber@intellitext-nv.com';
-
-// ===============================
-// TRANSCRIPT DELIVERY CHOICES
-// ===============================
-// The four choices under "Transcription provided" on the portal, and the
-// Outcome label each one gets in the Transcripts Log.
-//
-//   upload           I have a transcript to upload
-//   teammate         My Intellitext teammate is uploading. This is a RECORD
-//                    ONLY entry: it skips the duplicate guard, never counts
-//                    as coverage in Shift Validation, and never triggers the
-//                    sequential early-end or Bellingham checks.
+// Shown under "Transcription provided". One of four is required:
+//   upload           I have a transcript to upload (shows the file box)
+//   teammate         My Intellitext teammate is uploading (record only)
 //   client_teammate  A school/client captioner is handling delivery
 //   not_needed       No transcript needed for this job (rare, admin is notified)
-//
-// Shift Validation and the Bellingham check find record-only rows by the
-// words "teammate uploading" in the Outcome column, so keep those words in
-// that label if it's ever reworded.
-const DELIVERY_LABELS = {
-  upload: 'Attended',
-  teammate: 'Attended – Intellitext teammate uploading',
-  client_teammate: 'Attended – school/client captioner delivering',
-  not_needed: 'Attended – no transcript required'
-};
-
-function isTeammateUploading(payload) {
-  return payload.outcome === 'Attended' && payload.deliveryMode === 'teammate';
+// Passing '' clears the choice.
+function setDeliveryMode(mode) {
+  el.deliveryMode.value = mode || '';
+  document.querySelectorAll('#deliveryChoices button').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === mode);
+  });
+  const isUpload = mode === 'upload';
+  el.fileArea.classList.toggle('hidden', !isUpload);
+  if (!isUpload && el.file) el.file.value = '';
 }
 
-// Outcome text for the log and confirmation email. Older versions of the
-// portal (still open in someone's browser) send no deliveryMode, so those
-// fall back to the old checkbox behavior.
-function outcomeLabelFor(payload) {
-  if (payload.outcome !== 'Attended') return payload.outcome;
-  if (payload.deliveryMode && DELIVERY_LABELS[payload.deliveryMode]) {
-    return DELIVERY_LABELS[payload.deliveryMode];
+// ===============================
+// OUTCOME + LATE CANCEL REASON
+// ===============================
+// Choosing "Late cancel / dismissed" opens a popup asking for the reason.
+// The outcome is only selected once a reason is picked; closing the popup
+// with Cancel leaves the previous selection exactly as it was.
+function selectOutcome(value) {
+  document.querySelectorAll('#outcomeButtons button').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === value);
+  });
+  const map = { attended: 'Attended', noshow: 'No-Show', late_cancel: 'Late Notice Cancellation' };
+  const resolvedOutcome = map[value] || '';
+  el.outcome.value = resolvedOutcome;
+  const isAttended = resolvedOutcome === 'Attended';
+  const isLateCancel = resolvedOutcome === 'Late Notice Cancellation';
+  el.uploadArea.classList.toggle('hidden', !isAttended);
+  el.issuesWrapper.classList.toggle('hidden', !isAttended);
+  el.lateCancelCommentArea.classList.toggle('hidden', !isLateCancel);
+  if (!isLateCancel) {
+    el.lateCancelComment.value = '';
+    setLateCancelReason('');
   }
-  return payload.noTranscriptNeeded === true
-    ? 'Attended – no transcript required'
-    : payload.outcome;
-}
-
-// ===============================
-// RIT DOCX FORMAT CHECK
-// ===============================
-function notifyAdminIfRitNonDocx(payload) {
-  const isRIT =
-    payload.client &&
-    payload.client.trim().toUpperCase() === 'RIT';
-
-  if (!isRIT || !payload.fileName) return;
-
-  const isDocx = payload.fileName.toLowerCase().endsWith('.docx');
-  if (isDocx) return;
-
-  const body =
-`RIT transcript uploaded in non-DOCX format.
-
-Job: ${payload.job}
-Date: ${payload.date}
-File name: ${payload.fileName}
-
-Please follow up as needed.`;
-
-  GmailApp.sendEmail(
-    ADMIN_EMAIL,
-    'RIT Transcript Uploaded Not in DOCX Format',
-    body,
-    { from: FROM_ALIAS, name: 'Intellitext' }
-  );
-}
-
-// ===============================
-// MASTER DATA
-// ===============================
-function getMasterData() {
-  const ss = SpreadsheetApp.openById(MASTER_CLASS_LIST_ID);
-  const sheet = ss.getSheetByName('Master Class List');
-  const data = sheet.getDataRange().getValues();
-  const header = data.shift();
-
-  const idx = {
-    client: header.indexOf('Client'),
-    student: header.indexOf('User'),
-    job: header.indexOf('Job'),
-    token: header.indexOf('Portal Token')
-  };
-
-  // Transcript destinations (Drive links, client emails) are deliberately
-  // NOT included. This list is sent to every browser that opens the portal;
-  // destinations are looked up on the server at submit time instead
-  // (see lookupDestination below).
-  return data.map(r => ({
-    client: r[idx.client],
-    student: r[idx.student],
-    job: r[idx.job],
-    // Included so the portal can resolve tokens instantly in the browser
-    // instead of making a second trip to this script.
-    token: idx.token === -1 ? '' : (r[idx.token] || '').toString().trim()
-  })).filter(r => r.client && r.student && r.job);
-}
-
-// ===============================
-// SERVER-SIDE DESTINATION LOOKUP
-// ===============================
-// Finds the Transcript Destination for a Client/User/Job on the Master
-// Class List. Runs only on the server, so destinations never reach the
-// browser. Returns '' when there's no match, which routes the transcript
-// to admin for manual handling (same as before).
-function lookupDestination(client, student, job) {
-  const norm = v => (v || '').toString().trim();
-  const key = [norm(client), norm(student), norm(job)].join('|');
-  if (key === '||') return '';
-
-  const cache = CacheService.getScriptCache();
-  let map = null;
-  const cached = cache.get('destinationMap_v1');
-  if (cached) {
-    map = JSON.parse(cached);
-  } else {
-    const sheet = SpreadsheetApp.openById(MASTER_CLASS_LIST_ID).getSheetByName('Master Class List');
-    const data = sheet.getDataRange().getValues();
-    const header = data.shift();
-    const idx = {
-      client: header.indexOf('Client'),
-      student: header.indexOf('User'),
-      job: header.indexOf('Job'),
-      destination: header.indexOf('Transcript Destination')
-    };
-    map = {};
-    data.forEach(r => {
-      const k = [norm(r[idx.client]), norm(r[idx.student]), norm(r[idx.job])].join('|');
-      const dest = norm(r[idx.destination]);
-      if (dest && !(k in map)) map[k] = dest; // first matching row wins, like the old frontend lookup
-    });
-    try {
-      cache.put('destinationMap_v1', JSON.stringify(map), 300); // 5 minutes, server-side only
-    } catch (err) {
-      console.warn('Destination map too large to cache: ' + err);
-    }
+  if (!isAttended) {
+    setDeliveryMode('');
   }
-  return map[key] || '';
 }
 
-// Cache key is versioned so the previously cached list (which included
-// destinations) is never served after this update is deployed.
-const MASTER_DATA_CACHE_KEY = 'masterData_v3';
-const MASTER_DATA_CACHE_SECONDS = 600; // 10 minutes; the warmer below refreshes every 5
-
-function getMasterDataJson() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get(MASTER_DATA_CACHE_KEY);
-  if (cached) return cached;
-  return rebuildMasterDataCache();
+function setLateCancelReason(reason) {
+  el.lateCancelReason.value = reason || '';
+  document.getElementById('lateCancelReasonText').textContent = reason || '';
+  document.querySelectorAll('#reasonChoices button').forEach(b => {
+    b.classList.toggle('active', b.dataset.value === reason);
+  });
 }
 
-function rebuildMasterDataCache() {
-  const json = JSON.stringify(getMasterData());
-  try {
-    // A cache item can hold at most 100KB. If the list ever grows past that,
-    // the write fails, but the portal still gets its data (just uncached).
-    CacheService.getScriptCache().put(MASTER_DATA_CACHE_KEY, json, MASTER_DATA_CACHE_SECONDS);
-  } catch (err) {
-    console.warn('Master data too large to cache (' + json.length + ' chars): ' + err);
-  }
-  return json;
+function openReasonModal() {
+  document.getElementById('reasonModalOverlay').classList.remove('hidden');
 }
 
-// ===============================
-// CACHE WARMER (optional)
-// ===============================
-// Run installCacheWarmer() once from the editor. It rebuilds the cached
-// class list every 5 minutes, so no transcriber ever has to wait for the
-// spreadsheet to be opened, and Master Class List edits show up within
-// about 5 minutes. Safe to run more than once; it won't stack triggers.
-function warmMasterDataCache() {
-  rebuildMasterDataCache();
-}
-
-function installCacheWarmer() {
-  ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === 'warmMasterDataCache')
-    .forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('warmMasterDataCache').timeBased().everyMinutes(5).create();
-  warmMasterDataCache();
+function closeReasonModal() {
+  document.getElementById('reasonModalOverlay').classList.add('hidden');
 }
 
 // ===============================
 // PORTAL TOKEN LOOKUP
 // ===============================
-// Additive alongside the dropdown flow above — resolves a Portal Token to
-// the Client/User/Job it belongs to so the form can be pre-filled with
-// values already present in masterData. The normal submit-time lookup
-// (matching client/student/job against masterData for the Transcript
-// Destination) is untouched and handles token-filled submissions exactly
-// like dropdown-filled ones.
-function getMasterDataWithTokens() {
-  const cache = CacheService.getScriptCache();
-  const cached = cache.get('masterDataWithTokens');
-  if (cached) return JSON.parse(cached);
-
-  const ss = SpreadsheetApp.openById(MASTER_CLASS_LIST_ID);
-  const sheet = ss.getSheetByName('Master Class List');
-  const data = sheet.getDataRange().getValues();
-  const header = data.shift();
-
-  const idx = {
-    client: header.indexOf('Client'),
-    student: header.indexOf('User'),
-    job: header.indexOf('Job'),
-    token: header.indexOf('Portal Token')
-  };
-
-  if (idx.token === -1) {
-    // Portal Token column doesn't exist in this sheet (yet) — token lookup
-    // is simply unavailable rather than a hard failure.
-    return [];
-  }
-
-  const rows = data
-    .map(r => ({
-      client: r[idx.client],
-      student: r[idx.student],
-      job: r[idx.job],
-      token: (r[idx.token] || '').toString().trim()
-    }))
-    .filter(r => r.client && r.student && r.job && r.token);
-
-  cache.put('masterDataWithTokens', JSON.stringify(rows), 300); // 5-minute TTL, same as getMasterData
-  return rows;
+// Additive alongside the Client/User/Job dropdowns below. A successful
+// lookup pre-fills those same fields with values already present in
+// masterData, so everything downstream (Other/Not Listed handling,
+// destination lookup at submit time, manualEntry detection) behaves
+// exactly as if the transcriber had picked them from the dropdowns.
+function setTokenStatus(msg, color) {
+  const statusEl = document.getElementById('tokenStatus');
+  statusEl.textContent = msg;
+  statusEl.style.color = color || 'var(--muted)';
 }
 
-function lookupByToken(rawToken) {
-  const token = (rawToken || '').toString().trim().toUpperCase();
-  if (!token) return { found: false };
+function applyTokenMatch(data) {
+  usedPortalToken = true;
 
-  const rows = getMasterDataWithTokens();
-  if (!rows.length) return { found: false, unavailable: true };
+  el.client.value = data.client;
+  hideClientSuggestions();
 
-  const matches = rows.filter(r => r.token.toUpperCase() === token);
+  reset(el.student);
+  reset(el.job);
 
-  if (matches.length === 0) return { found: false };
+  masterData
+    .filter(d => d.client === data.client)
+    .map(d => d.student)
+    .filter(unique)
+    .sort()
+    .forEach(v => addOption(el.student, v));
 
-  // Should never happen given the write-side collision checks in the
-  // Schedule Intake backend, but refuse to silently guess which row is
-  // right if a duplicate token ever does slip in (e.g. a manual sheet edit).
-  if (matches.length > 1) return { found: false, ambiguous: true };
+  el.student.value = data.student;
+  toggleOther(el.student, otherFields.student);
 
-  const match = matches[0];
-  return {
-    found: true,
-    client: match.client,
-    student: match.student,
-    job: match.job
-  };
+  masterData
+    .filter(d => d.client === data.client && d.student === data.student)
+    .map(d => d.job)
+    .sort()
+    .forEach(v => addOption(el.job, v));
+
+  el.job.value = data.job;
+  toggleOther(el.job, otherFields.job);
+
+  toggleRitNoteFromClient();
+
+  // If any field didn't actually take (e.g. a whitespace mismatch between
+  // the token's record and masterData), report it rather than silently
+  // showing a resolved-class summary that doesn't match what will submit.
+  return el.client.value === data.client && el.student.value === data.student && el.job.value === data.job;
+}
+
+function showManualSection() {
+  document.getElementById('manualSection').classList.remove('hidden');
 }
 
 // ===============================
-// MAIN SUBMISSION HANDLER
+// TOKEN-FOUND CHIME
 // ===============================
-function processSubmission(payload) {
-  payload.outcome = normalizeOutcome(payload.outcome);
-
-  // Confirmation can go to more than one person (e.g. both transcribers on a
-  // teamed class). Cleans the list to valid, unique addresses, comma separated.
-  payload.confirmationEmail = normalizeConfirmationEmails(payload.confirmationEmail);
-
-  // Idempotency check: if this exact submission attempt (same submissionId)
-  // was already processed — e.g. an automatic client-side retry after a
-  // dropped connection — return the original result instead of redoing
-  // any work. This runs before the job-level duplicate check below.
-  if (payload.submissionId) {
-    const cached = getCachedResult(payload.submissionId);
-    if (cached) return cached;
-  }
-
-  // Every report type — Attended (email or Drive), No-Show, Late Cancel —
-  // is blocked if the same Client/Student/Job/Date was submitted in the
-  // last 5 minutes. Jobs in DUPLICATE_GUARD_EXCEPTIONS (see below) and
-  // "My Intellitext teammate is uploading" entries skip this check
-  // entirely, so both teammates can always report.
-  if (isDuplicateSubmission(payload)) {
-    const blocked = {
-      success: false,
-      duplicate: true,
-      message: "This appears to be a duplicate. A report has already been submitted for this job. If you need to make changes, please email admin."
-    };
-    cacheResult(payload.submissionId, blocked);
-    return blocked;
-  }
-
-  markSubmissionSeen(payload);
-
-  routeByOutcome(payload);
-  routeIssues(payload);
-
-  // Sequential team early-end alert. Wrapped so a problem here can never
-  // stop the report itself from being saved or delivered. Skipped for
-  // record-only teammate entries, which don't mean the class is over.
-  if (!isTeammateUploading(payload)) {
-    try {
-      checkSequentialEarlyEnd(payload);
-    } catch (err) {
-      console.error('Sequential early-end check failed: ' + err);
-    }
-  }
-
-  if (payload.outcome === 'Late Notice Cancellation' && payload.lateCancelComment) {
-    notifyAdminOfLateCancelComment(payload);
-  }
-
-  if (payload.outcome === 'Attended' && payload.deliveryMode === 'not_needed') {
-    notifyAdminOfNoTranscriptNeeded(payload);
-  }
-
-  if (payload.manualEntry) {
-    GmailApp.sendEmail(
-      ADMIN_EMAIL,
-      'Portal Submission – Unrecognized Client/User/Job',
-      `A report was submitted with unrecognized data and may need attention:\n\nClient: ${payload.client}\nUser: ${payload.student}\nJob: ${payload.job}\nDate: ${payload.date}\nOutcome: ${outcomeLabelFor(payload)}`,
-      { from: FROM_ALIAS, name: 'Intellitext' }
-    );
-  }
-
-  if (
-    payload.outcome === 'Attended' &&
-    payload.fileData &&
-    payload.noTranscriptNeeded !== true &&
-    (!payload.deliveryMode || payload.deliveryMode === 'upload')
-  ) {
-    // The destination always comes from the Master Class List on the
-    // server. Anything the browser sent is ignored.
-    payload.destination = payload.manualEntry
-      ? ''
-      : lookupDestination(payload.client, payload.student, payload.job);
-    notifyAdminIfRitNonDocx(payload);
-    handleTranscriptDelivery(payload);
-  }
-
-  if (payload.issues && payload.issues.length) {
-    notifyAdmin(payload);
-  }
-
-  if (payload.sendConfirmation && payload.confirmationEmail) {
-
-    let commentsSection = '';
-
-    if (payload.notes) {
-      commentsSection += `\nNotes:\n${payload.notes}\n`;
-    }
-
-    if (payload.outcome === 'Late Notice Cancellation' && payload.lateCancelComment) {
-      commentsSection += `\nLate Cancel Comment:\n${payload.lateCancelComment}\n`;
-    }
-
-    if (payload.issues && payload.issues.length) {
-      const issuesText = payload.issues
-        .map(i => `${i.type}: ${i.text}`)
-        .join('\n\n');
-      commentsSection += `\nIssues Reported:\n${issuesText}\n`;
-    }
-
-    // For uploads, show the file exactly as the transcriber picked it (the
-    // name they'll recognize) plus the name it was saved under.
-    let fileSection = '';
-    if (payload.fileData && payload.fileName && (!payload.deliveryMode || payload.deliveryMode === 'upload')) {
-      fileSection =
-`File uploaded: ${payload.fileName}
-Saved as: ${buildTranscriptFilename(payload.date, payload.job, payload.fileName)}
-`;
-    }
-
-    const reasonLine = (payload.outcome === 'Late Notice Cancellation' && payload.lateCancelReason)
-      ? `Reason: ${payload.lateCancelReason}\n`
-      : '';
-
-    const body =
-`Your job report has been successfully submitted.
-
-Client: ${payload.client}
-User: ${payload.student}
-Job: ${payload.job}
-Date: ${payload.date}
-Outcome: ${outcomeLabelFor(payload)}
-${reasonLine}${fileSection}${commentsSection}
-Submitted at: ${new Date().toLocaleString()}
-
-If this was submitted in error, please contact admin.`;
-
-    GmailApp.sendEmail(
-      payload.confirmationEmail,
-      'Intellitext Portal Submission Confirmation',
-      body,
-      { from: FROM_ALIAS, name: 'Intellitext' }
-    );
-  }
-
-  const result = { success: true };
-  cacheResult(payload.submissionId, result);
-  return result;
+// Generated in-browser with the Web Audio API — no sound files to host.
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
 }
 
-// ===============================
-// CONFIRMATION RECIPIENTS
-// ===============================
-// Accepts one address or several separated by commas, semicolons, or spaces.
-// Drops anything that isn't a valid-looking email, removes repeats, and caps
-// the list so the public portal can't be used to blast mail.
-const MAX_CONFIRMATION_RECIPIENTS = 5;
-
-function normalizeConfirmationEmails(raw) {
-  const list = Array.isArray(raw) ? raw.join(',') : (raw || '').toString();
-  const seen = [];
-  list.split(/[,;\s]+/).forEach(e => {
-    const email = e.trim().toLowerCase();
-    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) && seen.indexOf(email) === -1) {
-      seen.push(email);
-    }
-  });
-  return seen.slice(0, MAX_CONFIRMATION_RECIPIENTS).join(', ');
+function toneRamp(ctx, startFreq, endFreq, startTime, duration, type, peakGain) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(startFreq, startTime);
+  osc.frequency.linearRampToValueAtTime(endFreq, startTime + duration * 0.8);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.05);
 }
 
-// ===============================
-// OUTCOME NORMALIZATION
-// ===============================
-function normalizeOutcome(outcome) {
-  if (!outcome) return '';
-
-  const o = outcome.trim().toLowerCase();
-
-  if (o === 'attended' || o === 'transcription provided') {
-    return 'Attended';
-  }
-
-  if (o === 'no show' || o === 'no-show' || o === 'client no-show') {
-    return 'No-Show';
-  }
-
-  if (
-    o === 'late notice cancellation' ||
-    o === 'late notice' ||
-    o === 'late cancel / dismissed'
-  ) {
-    return 'Late Notice Cancellation';
-  }
-
-  if (o.includes('no transcript')) {
-    return 'Attended';
-  }
-
-  return outcome;
+function tone(ctx, freq, startTime, duration, type, peakGain) {
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, startTime);
+  gain.gain.setValueAtTime(0, startTime);
+  gain.gain.linearRampToValueAtTime(peakGain, startTime + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(startTime);
+  osc.stop(startTime + duration + 0.05);
 }
 
-// ===============================
-// OUTCOME ROUTING
-// ===============================
-function routeByOutcome(payload) {
-  switch (payload.outcome) {
-    case 'Attended':
-      logTranscript(payload);
-      break;
-
-    case 'No-Show':
-    case 'Late Notice Cancellation':
-      logNoShow(payload);
-      break;
-
-    default:
-      throw new Error('Unhandled outcome: ' + payload.outcome);
+function playTokenFoundChime() {
+  try {
+    const ctx = getAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    toneRamp(ctx, 659.25, 830.6, now, 0.45, 'sine', 0.22);
+    tone(ctx, 1318.5, now, 0.3, 'sine', 0.05);
+  } catch (e) {
+    // Web Audio unavailable or blocked — fail silently, never block the lookup flow
   }
 }
 
-// ===============================
-// TRANSCRIPTS LOG
-// ===============================
-function logTranscript(payload) {
-  const ss = SpreadsheetApp.openById(RESPONSE_SHEET_ID);
-  const sheet = ss.getSheetByName('Transcripts Log');
-  if (!sheet) throw new Error('Missing sheet: Transcripts Log');
-
-  sheet.appendRow([
-  new Date(),
-  payload.client,
-  payload.student,
-  payload.job,
-  payload.date,
-  outcomeLabelFor(payload),
-  payload.notes,
-  payload.sendConfirmation === true ? 'YES' : 'NO',
-  payload.sendConfirmation === true ? payload.confirmationEmail : '',
-  payload.viaPortalToken === true ? 'Token' : 'Dropdown'
-]);
+function showResolvedJob(data) {
+  document.getElementById('rClient').textContent = data.client;
+  document.getElementById('rStudent').textContent = data.student;
+  document.getElementById('rJob').textContent = data.job;
+  document.getElementById('resolvedJob').classList.remove('hidden');
+  document.getElementById('dividerOr').classList.add('hidden'); // its own "select manually" link covers this now
 }
 
-// ===============================
-// NO-SHOW LOG
-// ===============================
-function logNoShow(payload) {
-  const ss = SpreadsheetApp.openById(RESPONSE_SHEET_ID);
-  const sheet = ss.getSheetByName('No-Show Log');
-  if (!sheet) throw new Error('Missing sheet: No-Show Log');
-
-  sheet.appendRow([
-    new Date(),
-    payload.client,
-    payload.student,
-    payload.job,
-    payload.date,
-    payload.outcome,
-    payload.outcome === 'Late Notice Cancellation' ? payload.lateCancelComment : '',
-    payload.sendConfirmation === true ? 'YES' : 'NO',
-    payload.sendConfirmation === true ? payload.confirmationEmail : '',
-    payload.viaPortalToken === true ? 'Token' : 'Dropdown',
-    // Column K: Late Cancel Reason. Added at the end so no existing column moves.
-    // Blank for no-shows and for reports from older portal versions.
-    payload.outcome === 'Late Notice Cancellation' ? (payload.lateCancelReason || '') : ''
-  ]);
+function hideResolvedJob() {
+  document.getElementById('resolvedJob').classList.add('hidden');
+  document.getElementById('dividerOr').classList.remove('hidden');
 }
 
-// ===============================
-// ISSUE ROUTING
-// ===============================
-function routeIssues(payload) {
-  if (!payload.issues || !payload.issues.length) return;
+function lookupPortalToken() {
+  const token = el.portalToken.value.trim();
+  if (!token) { setTokenStatus(''); return; }
 
-  const ss = SpreadsheetApp.openById(RESPONSE_SHEET_ID);
-
-  const map = {
-    'Audio Issues': 'Audio Issues',
-    'Upcoming Schedule Changes': 'Schedule Changes',
-    'Overages/Class Ran Long': 'Overages/Class Ran Long',
-    'Other / Misc': 'Other Concerns'
-  };
-
-  payload.issues.forEach(issue => {
-    const sheetName = map[issue.type];
-    if (!sheetName) return;
-
-    const sheet = ss.getSheetByName(sheetName);
-    if (!sheet) throw new Error('Missing sheet: ' + sheetName);
-
-    sheet.appendRow([
-      new Date(),
-      payload.client,
-      payload.student,
-      payload.job,
-      payload.date,
-      issue.text
-    ]);
-  });
-}
-
-// ===============================
-// SEQUENTIAL TEAM EARLY-END ALERT
-// ===============================
-// When a report comes in for a sequentially teamed class, and later
-// segments of that class haven't started yet, the class is over (no-show,
-// cancellation, or it met and ended early). Only the last responsible
-// transcriber files, so any report before a later segment starts means
-// that segment isn't needed. This emails every transcriber on today's team
-// for that class (including whoever filed the report) and CCs admin.
-// Replies go to admin.
-
-const SCHEDULE_SHEET_ID = '1vNlFd_RCDPckZYGigPiPoOMtqffm_OpQFndWKlmVa60';
-const SCHEDULE_TAB = 'Today';
-const SCHEDULE_TZ = 'America/Los_Angeles'; // Schedule sheet times are Pacific
-
-// A segment that started up to this many minutes ago still counts as
-// "not needed" (that transcriber may have only just joined).
-const SEQ_GRACE_MINUTES = 5;
-
-// "Way early" check. A "Transcription provided" report that comes in with
-// this many segments still to go, OR this many minutes left in the class,
-// is more likely a mid-class hand-off mistake than a real early end. Those
-// go to admin only for a quick look instead of straight to the team.
-// No-shows and late cancels always go straight to the team.
-const SEQ_REVIEW_MIN_SEGMENTS_LEFT = 2;
-const SEQ_REVIEW_MIN_MINUTES_LEFT = 120;
-
-// Highlight affected rows on the Schedule sheet so it's visible at a glance.
-const SEQ_HIGHLIGHT = true;
-const SEQ_HIGHLIGHT_COLOR = '#FFD8A8'; // light orange
-
-function checkSequentialEarlyEnd(payload) {
-  const now = new Date();
-  const todayPT = Utilities.formatDate(now, SCHEDULE_TZ, 'yyyy-MM-dd');
-
-  // Only act on reports for today's classes
-  if ((payload.date || '').toString().trim() !== todayPT) return;
-
-  const nowMin = seqParseMinutes(Utilities.formatDate(now, SCHEDULE_TZ, 'h:mm a'));
-  const reportKey = seqNorm((payload.student || '') + ' - ' + (payload.job || ''));
-  const reportClient = seqNorm(payload.client);
-  if (!payload.job || !reportClient) return;
-
-  const sheet = SpreadsheetApp.openById(SCHEDULE_SHEET_ID).getSheetByName(SCHEDULE_TAB);
-  if (!sheet) return;
-  const rows = sheet.getDataRange().getDisplayValues();
-
-  // Collect today's sequential segments for this class
-  const segments = [];
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    const job = (r[1] || '').toString();
-    const seg = job.match(/sequential\s*team\s*(\d+)\s*\/\s*(\d+)/i);
-    if (!seg) continue;
-
-    if (seqNorm(r[2]) !== reportClient) continue;
-    if ((r[9] || '').toString().trim() !== todayPT) continue;
-
-    const first = (r[5] || '').toString().trim();
-    const last = (r[6] || '').toString().trim();
-    if (!first || first === 'OpenShift') continue;
-    if (first === 'Cancelled' && last === 'Shifts') continue;
-
-    const base = seqNorm(job);
-    const isMatch =
-      base === reportKey ||
-      base.indexOf(reportKey) !== -1 ||
-      reportKey.indexOf(base) !== -1;
-    if (!isMatch) continue;
-
-    segments.push({
-      row: i + 1,
-      job: job,
-      segNum: parseInt(seg[1], 10),
-      segTotal: parseInt(seg[2], 10),
-      name: (first + ' ' + last).trim(),
-      email: (r[8] || '').toString().trim(),
-      date: (r[9] || '').toString().trim(),
-      start: r[10],
-      end: r[11],
-      startMin: seqParseMinutes(r[10]),
-      endMin: seqParseMinutes(r[11])
-    });
-  }
-
-  if (!segments.length) return; // not a sequential class, or no match
-
-  // Segments that haven't started yet (or only just started)
-  const upcoming = segments.filter(s => s.startMin > nowMin - SEQ_GRACE_MINUTES);
-  if (!upcoming.length) return; // normal end-of-class report, nothing to do
-
-  segments.sort((a, b) => a.startMin - b.startMin);
-
-  // Only alert once per class per day, even if multiple reports come in
-  const cache = CacheService.getScriptCache();
-  const dedupeRaw = 'seqEnd|' + reportClient + '|' + seqNorm(segments[0].job) + '|' + todayPT;
-  const dedupeKey = 'seqEnd_' + Utilities.base64EncodeWebSafe(
-    Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, dedupeRaw)
-  );
-  if (cache.get(dedupeKey)) return;
-  cache.put(dedupeKey, '1', 21600); // 6 hours
-
-  const baseJobName = segments[0].job
-    .replace(/-?\s*\(.*sequential\s*team\s*\d+\/\d+\)/i, '')
-    .trim();
-
-  let reason;
-  if (payload.outcome === 'No-Show') {
-    reason = 'the student was a no-show';
-  } else if (payload.outcome === 'Late Notice Cancellation') {
-    const lateCancelReasonText = {
-      // Keys must match the data-value text on the portal's reason buttons
-      'Student/user absence': 'the student is absent',
-      'Instructor cancellation': 'the instructor cancelled class',
-      'Transcription not needed today': 'transcription isn\'t needed today',
-      'Campus or weather-related closure': 'campus is closed today',
-      'Student dropped/cancelled request': 'the student has dropped or cancelled services'
-    };
-    reason = lateCancelReasonText[payload.lateCancelReason] || 'the class was cancelled';
-  } else {
-    reason = 'class ended early';
-  }
-
-  // Everyone on today's team for this class (finished, in progress, and
-  // upcoming), which includes the transcriber who filed the report.
-  const recipients = [];
-  segments.forEach(s => {
-    const e = (s.email || '').toLowerCase();
-    if (e && e.indexOf('@') !== -1 && recipients.indexOf(e) === -1) recipients.push(e);
-  });
-  // If the reporter asked for a confirmation at any address that isn't on
-  // the schedule, include those too so they're definitely on the thread.
-  const reporterEmails = payload.sendConfirmation ? (payload.confirmationEmail || '').split(/\s*,\s*/) : [];
-  reporterEmails.forEach(e => {
-    const email = e.trim().toLowerCase();
-    if (email && email.indexOf('@') !== -1 && recipients.indexOf(email) === -1) recipients.push(email);
-  });
-
-  // Each person listed once, even if they have more than one later segment
-  const upcomingFirstNames = upcoming
-    .map(s => s.name.split(' ')[0])
-    .filter((n, i, a) => a.indexOf(n) === i);
-  const namesText = upcomingFirstNames.length > 1
-    ? upcomingFirstNames.slice(0, -1).join(', ') + ' and ' + upcomingFirstNames[upcomingFirstNames.length - 1]
-    : upcomingFirstNames[0];
-  const segmentWord = upcoming.length > 1 ? 'your segments' : 'your segment';
-
-  // How early is this report?
-  const classEndMin = Math.max.apply(null, segments.map(s => s.endMin));
-  const minutesLeft = classEndMin - nowMin;
-  const holdForReview =
-    payload.outcome === 'Attended' &&
-    (upcoming.length >= SEQ_REVIEW_MIN_SEGMENTS_LEFT || minutesLeft >= SEQ_REVIEW_MIN_MINUTES_LEFT);
-
-  const segmentStatus = s => {
-    if (s.endMin <= nowMin) return 'finished';
-    if (s.startMin <= nowMin - SEQ_GRACE_MINUTES) return 'current segment';
-    return 'not needed';
-  };
-
-  const reportedAt = Utilities.formatDate(now, SCHEDULE_TZ, 'h:mm a') + ' PT';
-  const subject = '⏩UPDATE: Sequential Team: ' + segments[0].date + ' - ' + baseJobName;
-
-  const plainBody =
-`Hi all,
-
-Quick update on today's session. A report was just filed and ${reason}, so ${namesText}, ${segmentWord} won't be needed today.
-
-Date: ${segments[0].date}
-Client: ${payload.client}
-Job: ${baseJobName}
-Reported at: ${reportedAt}
-
-Today's team:
-${segments.map(s => `  ${s.segNum}/${s.segTotal}  ${s.name}  ${s.start} - ${s.end} PT  (${segmentStatus(s)})`).join('\n')}
-
-If you think this was sent in error or the class is still in session, please reply all right away so we can sort it out.
-
-Thank you!
-Intellitext Team`;
-
-  const segmentRowsHtml = segments.map(s => {
-    const status = segmentStatus(s);
-    const style = status === 'not needed' ? 'font-weight:700;' : 'color:#6b7e99;';
-    return '- ' + seqEsc(s.name) + ' (' + s.segNum + '/' + s.segTotal + ', ' + seqEsc(s.start) + ' - ' + seqEsc(s.end) + ' PT): ' +
-      '<span style="' + style + '">' + status + '</span>';
-  }).join('<br>');
-
-  const htmlBody =
-    'Hi all,<br><br>' +
-    'Quick update on today\'s session. A report was just filed and ' + reason + ', so <b>' + seqEsc(namesText) + ', ' + segmentWord + ' won\'t be needed today.</b><br><br>' +
-    '&#128197; <b>Date:</b> ' + seqEsc(segments[0].date) + '<br>' +
-    '&#128100; <b>Client:</b> ' + seqEsc(payload.client) + '<br>' +
-    '&#128188; <b>Job:</b> ' + seqEsc(baseJobName) + '<br>' +
-    '&#128338; <b>Reported at:</b> ' + reportedAt + '<br><br>' +
-    '<b>Today\'s team:</b><br>' + segmentRowsHtml + '<br><br>' +
-    '<i>If you think this was sent in error or the class is still in session, please reply all right away so we can sort it out.</i><br><br>' +
-    'Thank you!<br>Intellitext Team';
-
-  const options = {
-    from: FROM_ALIAS,
-    name: 'Intellitext Admin',
-    replyTo: ADMIN_EMAIL,
-    htmlBody: htmlBody
-  };
-
-  // Way-early "Transcription provided" report: admin only, nothing to the
-  // team, no highlighting. Admin forwards the update if the class really ended.
-  if (holdForReview) {
-    const hoursLeft = Math.floor(minutesLeft / 60);
-    const minsLeft = minutesLeft % 60;
-    const leftText = (hoursLeft ? hoursLeft + ' hr ' : '') + minsLeft + ' min';
-    const reviewNote =
-      'HELD FOR REVIEW: a transcript was filed with ' + upcoming.length + ' segment(s) and ' + leftText +
-      ' still to go, so this update was NOT sent to the team. It may be a mid-class hand-off.\n\n' +
-      'If the class really ended, forward this email to:\n' + (recipients.join(', ') || '(no emails on the schedule)') +
-      '\n\n----- Update that would have gone out -----\n\n';
-    const reviewHtml =
-      '<div style="background:#fff4e5; border-left:4px solid #e08a00; padding:10px 14px; margin-bottom:16px;">' +
-      '<b>Held for review:</b> a transcript was filed with ' + upcoming.length + ' segment(s) and ' + leftText +
-      ' still to go, so this update was <b>not</b> sent to the team. It may be a mid-class hand-off.<br><br>' +
-      'If the class really ended, forward this email to:<br>' + seqEsc(recipients.join(', ') || '(no emails on the schedule)') +
-      '</div>';
-
-    GmailApp.sendEmail(ADMIN_EMAIL, '⚠️ Check: ' + subject, reviewNote + plainBody, {
-      from: FROM_ALIAS,
-      name: 'Intellitext Admin',
-      htmlBody: reviewHtml + htmlBody
-    });
+  if (el.client.disabled) {
+    // Token is kept in the box; loadMasterData() runs the lookup as soon as data arrives.
+    setTokenStatus('Loading class data… your token will be checked automatically in a moment.');
     return;
   }
 
-  if (recipients.length) {
-    options.cc = ADMIN_EMAIL;
-    GmailApp.sendEmail(recipients.join(','), subject, plainBody, options);
+  setTokenStatus('Looking up…');
+  hideResolvedJob();
+
+  // First try the class list already in the page (instant). Only if the
+  // token isn't there do we ask the server. A ?token= link may already
+  // have started that server lookup at page open (see prefetchUrlToken).
+  let request;
+  const localMatch = findTokenLocally(token);
+  if (localMatch) {
+    request = Promise.resolve(localMatch);
+    prefetchedLookup = null;
+  } else if (prefetchedLookup && prefetchedLookup.token === token) {
+    request = prefetchedLookup.promise;
+    prefetchedLookup = null;
   } else {
-    // No transcriber emails on the schedule rows, so admin gets it directly
-    // and can pass it along.
-    GmailApp.sendEmail(ADMIN_EMAIL, subject + ' (no transcriber emails found)', plainBody, options);
+    request = fetchJson(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token));
   }
 
-  if (SEQ_HIGHLIGHT) {
-    upcoming.forEach(s => {
-      sheet.getRange(s.row, 1, 1, 12).setBackground(SEQ_HIGHLIGHT_COLOR);
-    });
-  }
-}
-
-// Escapes text for the HTML version of the sequential update email
-function seqEsc(str) {
-  return (str || '').toString()
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-// Strips parentheticals, normalizes dashes and spacing, lowercases
-function seqNorm(str) {
-  return (str || '').toString()
-    .replace(/\s*\([^)]*\)/g, '')
-    .replace(/[–—]/g, '-')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-// Parses "3:50 pm" / "3:50 PM" into minutes since midnight
-function seqParseMinutes(timeStr) {
-  const m = (timeStr || '').toString().match(/(\d+):(\d+)\s*([AaPp][Mm])/);
-  if (!m) return -1;
-  let hour = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
-  const ampm = m[3].toLowerCase();
-  if (ampm === 'pm' && hour !== 12) hour += 12;
-  if (ampm === 'am' && hour === 12) hour = 0;
-  return hour * 60 + min;
-}
-
-// ===============================
-// TRANSCRIPT DELIVERY
-// ===============================
-function handleTranscriptDelivery(payload) {
-  const filename = buildTranscriptFilename(
-    payload.date,
-    payload.job,
-    payload.fileName
-  );
-
-  const blob = Utilities.newBlob(
-    Utilities.base64Decode(payload.fileData),
-    payload.fileType,
-    filename
-  );
-
-  if (isEmailDelivery(payload)) {
-    if (payload.manualEntry || !payload.destination) {
-      GmailApp.sendEmail(
-        ADMIN_EMAIL,
-        'Manual Transcript Routing Required',
-        '',
-        {
-          from: FROM_ALIAS,
-          name: 'Intellitext',
-          attachments: [blob]
+  request
+    .then(data => {
+      if (data.found) {
+        // A class the server knows about but this page's list doesn't yet
+        // (added recently) gets added here, so the dropdowns can fill.
+        ensureClassInMasterData(data, token);
+        const applied = applyTokenMatch(data);
+        if (applied) {
+          showResolvedJob(data);
+          playTokenFoundChime();
+          setTokenStatus('Found it! Please confirm the class info below looks right.', 'var(--accent)');
+        } else {
+          setTokenStatus('Found a match, but couldn\'t fill in every field automatically — please select manually below.', 'var(--error)');
+          showManualSection();
         }
-      );
+      } else if (data.ambiguous) {
+        setTokenStatus('This token matches more than one class in our system — please contact admin, or use the dropdowns below.', 'var(--error)');
+        showManualSection();
+      } else if (data.unavailable) {
+        setTokenStatus('Portal Token lookup isn\'t set up yet — please use the dropdowns below.');
+        showManualSection();
+      } else {
+        setTokenStatus('No class found for that token. Double check it, or use the dropdowns below.', 'var(--error)');
+        showManualSection();
+      }
+    })
+    .catch(() => {
+      setTokenStatus('Could not reach the server — try again in a moment.', 'var(--error)');
+      showManualSection();
+    });
+}
+
+function send(payload, attempt = 1) {
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.success) {
+      document.getElementById('reportForm').classList.add('hidden');
+      document.getElementById('successView').classList.remove('hidden');
       return;
     }
 
-    const subject = 'Transcript: ' + payload.job + ' - ' + payload.date;
+    if (res.duplicate) {
+      showDupModal(res.message || 'This appears to be a duplicate submission.');
+      return;
+    }
 
-    const body =
-`Hello,
+    throw new Error('Submission failed');
+  })
+  .catch(() => {
+    if (attempt < 3) {
+      setTimeout(() => send(payload, attempt + 1), 1200 * attempt);
+      return;
+    }
+    alert('There was an error submitting the report. Please try again.');
+    el.submitBtn.disabled = false;
+    el.submitBtn.classList.remove('disabled');
+    el.submitBtn.textContent = 'Submit';
+  });
+}
 
-Attached is the transcript for the following session:
+// Puts class data into the page. The first time it runs, it also unlocks
+// the form and processes any token that was pasted (or came from the URL)
+// while data was loading. Later runs (the background refresh) just swap in
+// the newer list without disturbing what the transcriber has filled in.
+function applyMasterData(data) {
+  handleMasterData(data);
+  if (masterDataReady) return;
+  masterDataReady = true;
 
-${payload.job}
-${payload.date}
+  el.client.disabled = false;
+  el.client.placeholder = 'Type to search…';
+  document.getElementById('loadingNote').classList.add('hidden');
+  applyTokenFromUrlIfPresent();
+  if (el.portalToken.value.trim()) {
+    lookupPortalToken();
+  } else {
+    setTokenStatus('');
+  }
+}
 
-Please let us know if you have any questions or need anything further.
+function loadMasterData() {
+  // Show the saved list right away if this browser has one...
+  const saved = readSavedMasterData();
+  if (saved) applyMasterData(saved);
+  // ...and always fetch a fresh copy.
+  fetchFreshMasterData(3);
+}
 
-Best regards,
-Intellitext Transcriber`;
-
-    GmailApp.sendEmail(
-      payload.destination,
-      subject,
-      body,
-      {
-        from: FROM_ALIAS,
-        name: 'Intellitext',
-        cc: NOTES_CC,
-        attachments: [blob]
+function fetchFreshMasterData(retries) {
+  fetchJson(APPS_SCRIPT_URL + '?action=getMasterData')
+    .then(data => {
+      if (!Array.isArray(data) || !data.length) throw new Error('Empty class data');
+      saveMasterData(data);
+      applyMasterData(data);
+    })
+    .catch(err => {
+      if (retries > 0) {
+        if (!masterDataReady) {
+          document.getElementById('loadingNote').textContent = 'Still loading, please wait…';
+          setTokenStatus('Still loading class data, please wait…');
+        }
+        setTimeout(() => fetchFreshMasterData(retries - 1), 2000);
+      } else if (masterDataReady) {
+        // Already working from the saved list, so carry on quietly.
+        return;
+      } else {
+        el.client.disabled = false;
+        el.client.placeholder = 'Failed to load — please refresh the page';
+        document.getElementById('loadingNote').textContent = 'Please refresh your page.';
+        document.getElementById('loadingNote').style.color = 'var(--error)';
+        setTokenStatus('Couldn\'t load class data. Please refresh the page.', 'var(--error)');
       }
-    );
-    return;
-  }
-
-  // Drive delivery
-  const folderId = payload.destination.match(/[-\w]{25,}/)?.[0];
-  if (!folderId) throw new Error('Invalid Drive destination');
-
-  DriveApp.getFolderById(folderId).createFile(blob);
-}
-
-// ===============================
-// DUPLICATE SUBMISSION GUARD
-// ===============================
-
-// Jobs where back-to-back or same-day repeat submissions are legitimate
-// separate sessions (not accidental resubmits) and should never be caught
-// by the duplicate guard below. Matched case-insensitively as a substring
-// of the job name, so "Colorado School of Mines - STAFF / Appointment Hours"
-// matches "Appointment Hours".
-const DUPLICATE_GUARD_EXCEPTIONS = ['Appointment Hours'];
-
-function isDuplicateGuardException(payload) {
-  const job = (payload.job || '').toLowerCase();
-  return DUPLICATE_GUARD_EXCEPTIONS.some(exc => job.includes(exc.toLowerCase()));
-}
-
-function isEmailDelivery(payload) {
-  return payload.manualEntry || !payload.destination || payload.destination.includes('@');
-}
-
-function submissionCacheKey(payload) {
-  return 'sub_' + [payload.client, payload.student, payload.job, payload.date].join('|');
-}
-
-// "My Intellitext teammate is uploading" entries are never blocked, and
-// they never block anyone else, so the teammate who actually uploads is
-// never told their report is a duplicate.
-function isDuplicateSubmission(payload) {
-  if (isDuplicateGuardException(payload) || isTeammateUploading(payload)) return false;
-
-  const cache = CacheService.getScriptCache();
-  return !!cache.get(submissionCacheKey(payload));
-}
-
-function markSubmissionSeen(payload) {
-  if (isDuplicateGuardException(payload) || isTeammateUploading(payload)) return; // nothing to cache
-
-  const cache = CacheService.getScriptCache();
-  cache.put(submissionCacheKey(payload), '1', 300); // 5-minute window
-}
-
-// ===============================
-// IDEMPOTENCY CACHE (per submission attempt, not per job)
-// ===============================
-function idempotencyCacheKey(submissionId) {
-  return 'sid_' + submissionId;
-}
-
-function getCachedResult(submissionId) {
-  if (!submissionId) return null;
-  const cache = CacheService.getScriptCache();
-  const raw = cache.get(idempotencyCacheKey(submissionId));
-  return raw ? JSON.parse(raw) : null;
-}
-
-function cacheResult(submissionId, result) {
-  if (!submissionId) return;
-  const cache = CacheService.getScriptCache();
-  cache.put(idempotencyCacheKey(submissionId), JSON.stringify(result), 600); // 10-minute window
-}
-
-// ===============================
-// ADMIN NOTIFICATION
-// ===============================
-function notifyAdmin(payload) {
-  const issuesText = payload.issues
-    .map(i => `${i.type}: ${i.text}`)
-    .join('\n\n');
-
-  const body =
-`Attention required:
-
-Client: ${payload.client}
-User: ${payload.student}
-Job: ${payload.job}
-Date: ${payload.date}
-
-Issues:
-${issuesText}`;
-
-  GmailApp.sendEmail(
-    ADMIN_EMAIL,
-    'Issue Report Requires Attention',
-    body,
-    { from: FROM_ALIAS, name: 'Intellitext' }
-  );
-}
-
-// ===============================
-// "NO TRANSCRIPT NEEDED" NOTIFICATION
-// ===============================
-// This choice is rare and counts as coverage in Shift Validation, so admin
-// gets a heads-up every time it's used. If it's legit, ignore the email.
-function notifyAdminOfNoTranscriptNeeded(payload) {
-  const body =
-`A report was submitted as "No transcript needed for this job."
-
-Client: ${payload.client}
-User: ${payload.student}
-Job: ${payload.job}
-Date: ${payload.date}
-
-If this job normally needs a transcript, please follow up with the transcriber.`;
-
-  GmailApp.sendEmail(
-    ADMIN_EMAIL,
-    'Portal Submission – No Transcript Needed Selected',
-    body,
-    { from: FROM_ALIAS, name: 'Intellitext' }
-  );
-}
-
-// ===============================
-// LATE CANCEL COMMENT NOTIFICATION
-// ===============================
-function notifyAdminOfLateCancelComment(payload) {
-  const body =
-`A late cancel / dismissal was reported with a comment:
-
-Client: ${payload.client}
-User: ${payload.student}
-Job: ${payload.job}
-Date: ${payload.date}
-Reason: ${payload.lateCancelReason || '(not given)'}
-
-Comment:
-${payload.lateCancelComment}`;
-
-  GmailApp.sendEmail(
-    ADMIN_EMAIL,
-    'Late Cancel / Dismissal Comment Reported',
-    body,
-    { from: FROM_ALIAS, name: 'Intellitext' }
-  );
-}
-
-// ===============================
-// FILENAME BUILDER
-// ===============================
-function buildTranscriptFilename(dateStr, jobName, originalName) {
-  const [yyyy, mm, dd] = dateStr.split('-');
-  const shortDate = `${mm}${dd}${yyyy.slice(-2)}`;
-
-  const safeJob = jobName
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-zA-Z0-9\-]/g, '');
-
-  const ext = originalName.includes('.')
-    ? '.' + originalName.split('.').pop()
-    : '';
-
-  return `${shortDate}-${safeJob}${ext}`;
-}
-// ===============================
-// BELLINGHAM DAILY REPORT REMINDER
-// ===============================
-// Runs once a day between 5:00 and 5:30 PM Pacific. Finds today's Bellingham
-// classes on the Schedule sheet, then checks the Transcripts Log and No-Show
-// Log for a report from each one. Any class without a report gets a reminder
-// email to the transcriber(s) assigned to it, with admin CC'd.
-// Days with no Bellingham classes on the schedule (weekends, breaks, or all
-// cancelled) are skipped automatically.
-//
-// To turn it on: run installBellinghamReminder() once from the editor.
-// To preview: run testBellinghamReminder(). Everything goes only to admin.
-
-const BELLINGHAM_MATCH = 'bellingham';   // matched against the Client column
-const BELLINGHAM_CC_ADMIN = true;       // CC admin on each reminder
-
-function installBellinghamReminder() {
-  // Also clears out the old Shorewood trigger, if it was ever installed
-  ScriptApp.getProjectTriggers()
-    .filter(t => ['checkBellinghamReports', 'checkShorewoodReports'].indexOf(t.getHandlerFunction()) !== -1)
-    .forEach(t => ScriptApp.deleteTrigger(t));
-  ScriptApp.newTrigger('checkBellinghamReports')
-    .timeBased()
-    .everyDays(1)
-    .atHour(16)          // 4 PM...
-    .nearMinute(15)      // ...Google runs it within about 15 min of 4:15, so 4:00 to 4:30
-    .inTimezone(SCHEDULE_TZ)
-    .create();
-}
-
-function checkBellinghamReports() {
-  runBellinghamCheck_(false);
-}
-
-function testBellinghamReminder() {
-  runBellinghamCheck_(true);
-}
-
-function runBellinghamCheck_(testMode) {
-  const now = new Date();
-  const todayPT = Utilities.formatDate(now, SCHEDULE_TZ, 'yyyy-MM-dd');
-  const dateLabel = Utilities.formatDate(now, SCHEDULE_TZ, 'EEEE, M/d');
-  const isBellingham = v => (v || '').toString().toLowerCase().indexOf(BELLINGHAM_MATCH) !== -1;
-
-  // --- Today's Bellingham classes from the Schedule sheet ---
-  const schedSheet = SpreadsheetApp.openById(SCHEDULE_SHEET_ID).getSheetByName(SCHEDULE_TAB);
-  if (!schedSheet) return;
-  const rows = schedSheet.getDataRange().getDisplayValues();
-
-  const classes = {};   // one entry per class, so teamed shifts count once
-  for (let i = 1; i < rows.length; i++) {
-    const r = rows[i];
-    if (!isBellingham(r[2])) continue;
-    if ((r[9] || '').toString().trim() !== todayPT) continue;
-
-    const first = (r[5] || '').toString().trim();
-    const last = (r[6] || '').toString().trim();
-    if (!first || first === 'OpenShift') continue;
-    if (first === 'Cancelled' && last === 'Shifts') continue;
-
-    const job = (r[1] || '').toString().trim();
-    const base = seqNorm(job);
-    if (!base) continue;
-
-    const c = classes[base] || (classes[base] = {
-      base: base,
-      job: job.replace(/\s*\([^)]*\)/g, '').trim(),
-      people: []
     });
-    c.people.push({
-      name: (first + ' ' + last).trim(),
-      email: (r[8] || '').toString().trim(),
-      start: r[10],
-      end: r[11]
-    });
-  }
+}
 
-  const classList = Object.keys(classes).map(k => classes[k]);
-  if (!classList.length) {
-    if (testMode) bellinghamTestNote_('No Bellingham classes on the schedule today, so no reminders would go out.');
-    return;
-  }
+// Lets a link like ?token=UMBC-GNAP33 pre-fill the token box, so a
+// transcriber can click straight through from shift notes with nothing to
+// paste. Runs once, right after class data finishes loading; the lookup
+// itself is triggered by loadMasterData(). A token the user already pasted
+// while loading takes priority over the URL one.
+function applyTokenFromUrlIfPresent() {
+  const token = new URLSearchParams(window.location.search).get('token');
+  if (token && !el.portalToken.value.trim()) el.portalToken.value = token;
+}
 
-  // --- Today's Bellingham reports from both logs ---
-  // "Intellitext teammate uploading" rows are record-only, so they don't
-  // count as a report here.
-  const ss = SpreadsheetApp.openById(RESPONSE_SHEET_ID);
-  const tz = ss.getSpreadsheetTimeZone();
-  const reported = [];
-  ['Transcripts Log', 'No-Show Log'].forEach(name => {
-    const sheet = ss.getSheetByName(name);
-    if (!sheet || sheet.getLastRow() < 2) return;
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).getValues().forEach(r => {
-      if (!isBellingham(r[1])) return;
-      if (bellinghamDateKey_(r[4], tz) !== todayPT) return;
-      if (/teammate uploading/i.test(String(r[5] || ''))) return;
-      const key = seqNorm((r[2] || '') + ' - ' + (r[3] || ''));
-      if (key.replace(/[-\s]/g, '')) reported.push(key);
+// For ?token= links: show the token in the box right away and start the
+// token lookup at the same time as the class data load, rather than one
+// after the other. The result is held until class data is ready.
+let prefetchedLookup = null;
+function prefetchUrlToken() {
+  const token = (new URLSearchParams(window.location.search).get('token') || '').trim();
+  if (!token) return;
+  if (masterDataReady) return; // saved class list already loaded and handled the URL token
+  el.portalToken.value = token;
+  setTokenStatus('Loading class data… your token will be checked automatically in a moment.');
+  // With a saved class list the token resolves locally, so no server call is needed.
+  if (findTokenLocally(token)) return;
+  const promise = fetchJson(APPS_SCRIPT_URL + '?action=lookupToken&token=' + encodeURIComponent(token));
+  promise.catch(() => {}); // handled later in lookupPortalToken
+  prefetchedLookup = { token: token, promise: promise };
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+
+  el = {
+    portalToken: document.getElementById('portalToken'),
+    client: document.getElementById('client'),
+    student: document.getElementById('student'),
+    job: document.getElementById('job'),
+    date: document.getElementById('date'),
+    outcome: document.getElementById('outcome'),
+    lateCancelCommentArea: document.getElementById('lateCancelCommentArea'),
+    lateCancelComment: document.getElementById('lateCancelComment'),
+    lateCancelReason: document.getElementById('lateCancelReason'),
+    uploadArea: document.getElementById('uploadArea'),
+    deliveryMode: document.getElementById('deliveryMode'),
+    fileArea: document.getElementById('fileArea'),
+    file: document.getElementById('file'),
+    issuesWrapper: document.getElementById('issuesWrapper'),
+    submitBtn: document.getElementById('submitBtn')
+  };
+
+  otherFields = {
+    student: document.getElementById('studentOther'),
+    job: document.getElementById('jobOther')
+  };
+
+  // Newer version check: once on open, and again whenever the tab comes
+  // back into view (covers portals left open for hours or days).
+  document.getElementById('updateReloadBtn').addEventListener('click', () => window.location.reload());
+  checkForNewerVersion();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') checkForNewerVersion();
+  });
+
+  el.portalToken.addEventListener('paste', () => setTimeout(lookupPortalToken, 50));
+  el.portalToken.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); lookupPortalToken(); }
+  });
+
+  document.getElementById('showManualBtn').addEventListener('click', () => {
+    hideResolvedJob();
+    showManualSection();
+  });
+
+  document.getElementById('notThisClassBtn').addEventListener('click', () => {
+    hideResolvedJob();
+    showManualSection();
+  });
+
+  const confirmationCheckbox = document.getElementById('sendConfirmation');
+  const confirmationContainer = document.getElementById('confirmationEmailContainer');
+  const confirmationEmailInput = document.getElementById('confirmationEmail');
+
+  confirmationCheckbox.addEventListener('change', () => {
+    confirmationContainer.classList.toggle('hidden', !confirmationCheckbox.checked);
+    if (!confirmationCheckbox.checked) confirmationEmailInput.value = '';
+  });
+
+  el.date.value = getTodayString();
+  dateIsAutoSet = true;
+  el.client.disabled = true;
+  newSubmissionId();
+  loadMasterData();   // uses the saved class list instantly when this browser has one
+  prefetchUrlToken(); // only does anything when there was no saved list
+
+  // ===============================
+  // STALE DATE AUTO-REFRESH
+  // ===============================
+  // Keeps the "Date of job" field pinned to today's date as long as the
+  // transcriber hasn't manually touched it. Guards against the portal
+  // being left open overnight (or reopened days later) and silently
+  // submitting under a stale default date.
+  el.date.addEventListener('input', () => {
+    dateIsAutoSet = false;
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && dateIsAutoSet) {
+      el.date.value = getTodayString();
+    }
+  });
+
+  setInterval(() => {
+    if (dateIsAutoSet) {
+      el.date.value = getTodayString();
+    }
+  }, 60000); // check every minute
+
+  el.client.addEventListener('input', (e) => {
+    reset(el.student);
+    reset(el.job);
+    if (e.isTrusted) {
+      renderClientSuggestions(el.client.value); // real typing only — skip on programmatic selection
+      usedPortalToken = false; // manual edit after a token fill means this is no longer a token-driven entry
+      hideResolvedJob();
+    }
+    masterData
+      .filter(d => d.client === el.client.value)
+      .map(d => d.student)
+      .filter(unique)
+      .sort()
+      .forEach(v => addOption(el.student, v));
+  });
+
+  el.client.addEventListener('focus', () => {
+    if (!el.client.disabled) renderClientSuggestions(el.client.value);
+  });
+
+  el.client.addEventListener('blur', () => {
+    hideClientSuggestions();
+  });
+
+  el.client.addEventListener('keydown', (e) => {
+    const box = document.getElementById('clientSuggestions');
+    const items = box.querySelectorAll('.suggestion-item');
+    if (box.classList.contains('hidden') || !items.length) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      activeSuggestionIndex = Math.min(activeSuggestionIndex + 1, items.length - 1);
+      items.forEach((it, i) => it.classList.toggle('active', i === activeSuggestionIndex));
+      items[activeSuggestionIndex].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      activeSuggestionIndex = Math.max(activeSuggestionIndex - 1, 0);
+      items.forEach((it, i) => it.classList.toggle('active', i === activeSuggestionIndex));
+      items[activeSuggestionIndex].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      if (activeSuggestionIndex >= 0) {
+        e.preventDefault();
+        selectClient(items[activeSuggestionIndex].dataset.value);
+      }
+    } else if (e.key === 'Escape') {
+      hideClientSuggestions();
+    }
+  });
+
+  el.student.addEventListener('change', () => {
+    reset(el.job);
+    toggleOther(el.student, otherFields.student);
+    masterData
+      .filter(d => d.client === el.client.value && d.student === el.student.value)
+      .map(d => d.job)
+      .sort()
+      .forEach(v => addOption(el.job, v));
+  });
+
+  el.job.addEventListener('change', () => toggleOther(el.job, otherFields.job));
+
+  document.querySelectorAll('#outcomeButtons button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.value === 'late_cancel') {
+        openReasonModal(); // outcome is applied once a reason is picked
+        return;
+      }
+      selectOutcome(btn.dataset.value);
     });
   });
 
-  // --- Which classes have no report yet ---
-  const isMatch = (base, key) =>
-    base === key || base.indexOf(key) !== -1 || key.indexOf(base) !== -1;
-  let missing = classList.filter(c => !reported.some(k => isMatch(c.base, k)));
-
-  // Safety net: fewer reports than classes, but the names didn't line up well
-  // enough to tell which one is missing, so remind everyone on today's schedule.
-  if (!missing.length && reported.length < classList.length) missing = classList;
-
-  if (!missing.length) {
-    GmailApp.sendEmail(ADMIN_EMAIL,
-      (testMode ? '[TEST] ' : '') + 'Bellingham reports all in for ' + dateLabel,
-      'All ' + classList.length + ' Bellingham classes have a report today. No reminders were sent.',
-      { from: FROM_ALIAS, name: 'Intellitext Admin' });
-    return;
-  }
-
-  // --- One email per transcriber, listing all of their missing classes ---
-  const byPerson = {};
-  const noEmail = [];
-  missing.forEach(c => c.people.forEach(p => {
-    const email = p.email.toLowerCase();
-    const line = c.job + ' (' + p.start + ' - ' + p.end + ' PT)';
-    if (!email || email.indexOf('@') === -1) { noEmail.push(p.name + ': ' + line); return; }
-    const entry = byPerson[email] || (byPerson[email] = { name: p.name, classes: [] });
-    if (entry.classes.indexOf(line) === -1) entry.classes.push(line);
-  }));
-
-  Object.keys(byPerson).forEach(email => {
-    const p = byPerson[email];
-    const firstName = p.name.split(' ')[0];
-    const multiple = p.classes.length > 1;
-
-    const body =
-`Hi ${firstName},
-
-Just a friendly reminder that we haven't received a portal report yet for ${multiple ? "these Bellingham classes" : "today's Bellingham class"}:
-
-${p.classes.map(c => '  - ' + c).join('\n')}
-
-Timely reports help us get transcripts to the student right away. When you have a moment, please submit your report through the portal. If the student was a no-show or the class was cancelled, please submit that report as well.
-
-If you've already submitted it, thank you! Just reply to this email and we'll look into it.
-
-Thank you!
-Intellitext Team`;
-
-    const subject = (testMode ? '[TEST, would go to ' + email + '] ' : '') +
-      'Reminder: Bellingham report needed for ' + dateLabel;
-
-    const options = { from: FROM_ALIAS, name: 'Intellitext Admin', replyTo: ADMIN_EMAIL };
-    if (BELLINGHAM_CC_ADMIN && !testMode) options.cc = ADMIN_EMAIL;
-
-    GmailApp.sendEmail(testMode ? ADMIN_EMAIL : email, subject, body, options);
+  document.querySelectorAll('#reasonChoices button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setLateCancelReason(btn.dataset.value);
+      if (el.outcome.value !== 'Late Notice Cancellation') selectOutcome('late_cancel');
+      closeReasonModal();
+    });
   });
 
-  if (noEmail.length) {
-    GmailApp.sendEmail(
-      ADMIN_EMAIL,
-      (testMode ? '[TEST] ' : '') + 'Bellingham report missing, no transcriber email on schedule',
-      'These Bellingham classes have no report yet today, and the schedule has no email for the transcriber:\n\n' +
-        noEmail.map(n => '  - ' + n).join('\n'),
-      { from: FROM_ALIAS, name: 'Intellitext Admin' }
-    );
+  document.getElementById('changeReasonBtn').addEventListener('click', openReasonModal);
+  document.getElementById('reasonModalCancel').addEventListener('click', closeReasonModal);
+  document.getElementById('reasonModalOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'reasonModalOverlay') closeReasonModal(); // click outside the box
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeReasonModal();
+  });
+
+  document.querySelectorAll('#deliveryChoices button').forEach(btn => {
+    btn.addEventListener('click', () => setDeliveryMode(btn.dataset.value));
+  });
+
+  document.querySelectorAll('.issue-block input[type="checkbox"]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      cb.closest('.issue-block').querySelector('textarea')
+        .classList.toggle('hidden', !cb.checked);
+    });
+  });
+
+  document.getElementById('reportForm').addEventListener('submit', e => {
+    e.preventDefault();
+
+    if (!el.outcome.value) {
+      alert('Please select an outcome before submitting.');
+      return;
+    }
+    if (el.outcome.value === 'Late Notice Cancellation' && !el.lateCancelReason.value) {
+      openReasonModal();
+      return;
+    }
+    const isAttended = el.outcome.value === 'Attended';
+    const deliveryMode = isAttended ? el.deliveryMode.value : '';
+    if (isAttended && !deliveryMode) {
+      alert('Please choose one of the transcript options before submitting.');
+      return;
+    }
+    if (deliveryMode === 'upload' && !el.file.files[0]) {
+      alert('Please choose your transcript file to upload.');
+      return;
+    }
+    if (confirmationCheckbox.checked) {
+      const emails = confirmationEmailInput.value.split(/[,;\s]+/).filter(Boolean);
+      const bad = emails.filter(e => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+      if (!emails.length) {
+        alert('Please enter at least one email address for the confirmation.');
+        return;
+      }
+      if (bad.length) {
+        alert('Please check these email addresses: ' + bad.join(', ') + '\n\nSeparate multiple addresses with commas.');
+        return;
+      }
+      if (emails.length > 5) {
+        alert('Please enter no more than 5 email addresses.');
+        return;
+      }
+    }
+
+    // Final safety net: if the date field is still on autopilot, force it
+    // to the current date right before the payload is built, in case the
+    // interval/visibility checks haven't fired yet this cycle.
+    if (dateIsAutoSet) {
+      el.date.value = getTodayString();
+    }
+
+    el.submitBtn.disabled = true;
+    el.submitBtn.classList.add('disabled');
+    el.submitBtn.textContent = 'Submitting…';
+
+    // The transcript destination is looked up on the server at submit time,
+    // so it's never part of the class list the browser receives.
+    const manualEntry =
+      !masterData.some(d => d.client === el.client.value) ||
+      el.student.value === '__OTHER__' ||
+      el.job.value === '__OTHER__';
+
+    const issues = [];
+    document.querySelectorAll('.issue-block').forEach(block => {
+      const cb = block.querySelector('input');
+      const ta = block.querySelector('textarea');
+      if (cb.checked && ta.value.trim()) {
+        issues.push({ type: cb.dataset.type, text: ta.value.trim() });
+      }
+    });
+
+    const lateCancelComment = (el.outcome.value === 'Late Notice Cancellation')
+      ? el.lateCancelComment.value.trim()
+      : '';
+    const lateCancelReason = (el.outcome.value === 'Late Notice Cancellation')
+      ? el.lateCancelReason.value
+      : '';
+
+    const payload = {
+      submissionId: currentSubmissionId,
+      client: el.client.value.trim(),
+      student: el.student.value === '__OTHER__' ? otherFields.student.value.trim() : el.student.value,
+      job: el.job.value === '__OTHER__' ? otherFields.job.value.trim() : el.job.value,
+      date: el.date.value,
+      outcome: el.outcome.value,
+      manualEntry,
+      viaPortalToken: usedPortalToken,
+      issues,
+      lateCancelComment,
+      lateCancelReason,
+      deliveryMode,
+      // Kept for the backend's older checks: true for every choice except upload
+      noTranscriptNeeded: isAttended && deliveryMode !== 'upload',
+      sendConfirmation: confirmationCheckbox.checked,
+      confirmationEmail: confirmationCheckbox.checked ? confirmationEmailInput.value.trim() : ''
+    };
+
+    if (deliveryMode === 'upload' && el.file.files[0]) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        payload.fileData = reader.result.split(',')[1];
+        payload.fileName = el.file.files[0].name;
+        payload.fileType = el.file.files[0].type;
+        send(payload);
+      };
+      reader.readAsDataURL(el.file.files[0]);
+    } else {
+      send(payload);
+    }
+  });
+
+  const ritNote = document.getElementById('rit-docx-note');
+  function toggleRitNote() {
+    const isRIT = (el.client.value || '').trim().toUpperCase() === 'RIT';
+    ritNote.style.display = isRIT ? 'block' : 'none';
   }
-}
+  toggleRitNoteFromClient = toggleRitNote;
+  el.client.addEventListener('input', toggleRitNote);
+  toggleRitNote();
 
-// Sends admin a short note when the test run finds nothing to remind about
-function bellinghamTestNote_(msg) {
-  GmailApp.sendEmail(ADMIN_EMAIL, '[TEST] Bellingham report check', msg,
-    { from: FROM_ALIAS, name: 'Intellitext Admin' });
-}
+  document.getElementById('dupModalOk').addEventListener('click', () => {
+    document.getElementById('dupModalOverlay').classList.add('hidden');
+    el.submitBtn.disabled = false;
+    el.submitBtn.classList.remove('disabled');
+    el.submitBtn.textContent = 'Submit';
+  });
 
-// Turns a log date (a real date, "2026-10-02", or "10/2/2026") into "2026-10-02"
-function bellinghamDateKey_(v, tz) {
-  if (v instanceof Date && !isNaN(v)) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
-  const s = (v || '').toString().trim();
-  const pad = n => ('0' + n).slice(-2);
-  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (m) return m[1] + '-' + pad(m[2]) + '-' + pad(m[3]);
-  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
-  if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + pad(m[1]) + '-' + pad(m[2]);
-  return s;
-}
+  // ===============================
+  // SUBMIT ANOTHER REPORT BUTTON
+  // ===============================
+  document.getElementById('logAnotherBtn').addEventListener('click', function () {
+    document.getElementById('successView').classList.add('hidden');
+    document.getElementById('reportForm').classList.remove('hidden');
+
+    document.getElementById('reportForm').reset();
+    const fileInput = document.getElementById('file');
+    const newFile = fileInput.cloneNode(true);
+    fileInput.parentNode.replaceChild(newFile, fileInput);
+    el.file = newFile;
+    el.date.value = getTodayString();
+    dateIsAutoSet = true;
+    newSubmissionId();
+
+    reset(el.student);
+    reset(el.job);
+    setTokenStatus('');
+    usedPortalToken = false;
+    document.getElementById('manualSection').classList.add('hidden');
+    hideResolvedJob();
+    el.portalToken.value = '';
+
+    el.uploadArea.classList.add('hidden');
+    el.issuesWrapper.classList.add('hidden');
+    el.lateCancelCommentArea.classList.add('hidden');
+    el.lateCancelComment.value = '';
+    setLateCancelReason('');
+    closeReasonModal();
+    confirmationContainer.classList.add('hidden');
+    setDeliveryMode('');
+
+    document.querySelectorAll('.issue-block textarea').forEach(ta => ta.classList.add('hidden'));
+    document.querySelectorAll('.issue-block input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.querySelectorAll('#outcomeButtons button').forEach(b => b.classList.remove('active'));
+
+    el.outcome.value = '';
+    el.submitBtn.disabled = false;
+    el.submitBtn.classList.remove('disabled');
+    el.submitBtn.textContent = 'Submit';
+
+    Object.values(otherFields).forEach(f => {
+      f.classList.add('hidden');
+      f.value = '';
+    });
+
+    toggleRitNote();
+  });
+
+});
+</script>
+</body>
+</html>
